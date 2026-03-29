@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @polyboard/web --filter @polyboard/worker dev",
     "build": "pnpm -r build",
-    "test": "pnpm -r test",
+    "test": "node --test tests/workspace/bootstrap.test.mjs && if find apps packages -mindepth 2 -name package.json -print -quit | grep -q .; then pnpm -r --if-present test; fi",
     "lint": "pnpm -r lint",
     "seed:dev": "tsx scripts/seed-dev.ts",
     "db:up": "docker compose up -d postgres",

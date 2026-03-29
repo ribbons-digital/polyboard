@@ -6,6 +6,7 @@ const requiredFiles = [
   'package.json',
   'pnpm-workspace.yaml',
   'tsconfig.base.json',
+  '.gitignore',
   '.env.example',
   'docker-compose.yml',
 ]
