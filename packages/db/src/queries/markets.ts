@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { createDb } from '../client'
 import { marketSnapshots, marketTags, markets, tokens } from '../schema'
 
@@ -28,14 +28,40 @@ export interface ReplaceMarketTagInput {
   label: string
 }
 
-export async function upsertMarkets(db: DbClient, rows: UpsertMarketInput[]) {
-  if (rows.length === 0) {
-    return
-  }
+export function getRetiredMarketIds(
+  activeMarketIds: string[],
+  trackedMarketIds: string[],
+) {
+  const trackedMarketIdSet = new Set(trackedMarketIds)
 
+  return activeMarketIds.filter((marketId) => !trackedMarketIdSet.has(marketId))
+}
+
+export function getRemovedTokenIds(
+  existingTokenIds: string[],
+  nextTokenIds: string[],
+) {
+  const nextTokenIdSet = new Set(nextTokenIds)
+
+  return existingTokenIds.filter((tokenId) => !nextTokenIdSet.has(tokenId))
+}
+
+export async function upsertMarkets(db: DbClient, rows: UpsertMarketInput[]) {
   const now = new Date()
 
   await db.transaction(async (tx) => {
+    const trackedMarketIds = rows.map((row) => row.id)
+    const activeMarketRows = await tx
+      .select({
+        id: markets.id,
+      })
+      .from(markets)
+      .where(eq(markets.active, true))
+    const retiredMarketIds = getRetiredMarketIds(
+      activeMarketRows.map((row) => row.id),
+      trackedMarketIds,
+    )
+
     for (const row of rows) {
       await tx
         .insert(markets)
@@ -71,6 +97,28 @@ export async function upsertMarkets(db: DbClient, rows: UpsertMarketInput[]) {
           },
         })
 
+      const existingTokenRows = await tx
+        .select({
+          id: tokens.id,
+        })
+        .from(tokens)
+        .where(eq(tokens.marketId, row.id))
+      const removedTokenIds = getRemovedTokenIds(
+        existingTokenRows.map((token) => token.id),
+        row.tokens.map((token) => token.id),
+      )
+
+      if (removedTokenIds.length > 0) {
+        await tx
+          .delete(tokens)
+          .where(
+            and(
+              eq(tokens.marketId, row.id),
+              inArray(tokens.id, removedTokenIds),
+            ),
+          )
+      }
+
       for (const token of row.tokens) {
         await tx
           .insert(tokens)
@@ -89,6 +137,16 @@ export async function upsertMarkets(db: DbClient, rows: UpsertMarketInput[]) {
             },
           })
       }
+    }
+
+    if (retiredMarketIds.length > 0) {
+      await tx
+        .update(markets)
+        .set({
+          active: false,
+          updatedAt: now,
+        })
+        .where(inArray(markets.id, retiredMarketIds))
     }
   })
 }
