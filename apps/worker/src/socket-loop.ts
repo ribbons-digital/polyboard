@@ -160,6 +160,7 @@ export function createMarketSocketLoop(deps: {
         message as MarketSocketMessage,
         deps.marketRepo.insertSnapshot,
       )
+      await markWebsocketFreshness('live', 'live')
     } catch (error) {
       deps.logger.error({ err: error }, 'failed to persist market snapshot')
     }

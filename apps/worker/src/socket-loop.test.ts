@@ -78,6 +78,53 @@ describe('createMarketSocketLoop', () => {
     )
   })
 
+  it('refreshes websocket freshness when a market message is handled', async () => {
+    const marketSocket = new FakeMarketSocket()
+    const listTrackedTokens = vi
+      .fn<() => Promise<Array<{ marketId: string; tokenId: string }>>>()
+      .mockResolvedValue([{ marketId: 'm1', tokenId: 'yes' }])
+    const updateFreshness = vi.fn(async () => undefined)
+    const insertSnapshot = vi.fn(async () => undefined)
+
+    const loop = createMarketSocketLoop({
+      freshnessRepo: {
+        updateFreshness,
+      },
+      logger: createLogger(),
+      marketRepo: {
+        insertSnapshot,
+        listTrackedTokens,
+      },
+      marketSocket,
+    })
+
+    await loop.start()
+    updateFreshness.mockClear()
+
+    marketSocket.emit('message', {
+      assetId: 'yes',
+      bestAsk: 0.51,
+      bestBid: 0.49,
+      price: 0.5,
+      timestamp: 1_743_336_060_000,
+    })
+
+    await vi.waitFor(() => {
+      expect(updateFreshness).toHaveBeenCalledWith(
+        'ws:markets',
+        'live',
+        'live',
+      )
+    })
+    expect(insertSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        marketId: 'm1',
+        tokenId: 'yes',
+        lastPrice: 0.5,
+      }),
+    )
+  })
+
   it('schedules only one reconnect when error and close fire in the same cycle', async () => {
     vi.useFakeTimers()
 
