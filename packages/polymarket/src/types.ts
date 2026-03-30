@@ -1,18 +1,21 @@
 import { z } from 'zod'
 
 export const gammaMarketSchema = z.object({
-  id: z.string(),
-  conditionId: z.string(),
-  question: z.string(),
-  slug: z.string(),
-  active: z.boolean(),
-  closed: z.boolean(),
-  volume: z.union([z.string(), z.number()]),
-  liquidity: z.union([z.string(), z.number()]),
+  id: z.string().nullable().optional(),
+  conditionId: z.string().nullable().optional(),
+  question: z.string().nullable().optional(),
+  slug: z.string().nullable().optional(),
+  active: z.boolean().nullable().optional(),
+  closed: z.boolean().nullable().optional(),
+  volume: z.union([z.string(), z.number()]).nullable().optional(),
+  liquidity: z.union([z.string(), z.number()]).nullable().optional(),
   category: z.string().nullable().optional(),
   endDate: z.string().nullable().optional(),
-  outcomes: z.union([z.string(), z.array(z.string())]),
-  clobTokenIds: z.union([z.string(), z.array(z.string())]),
+  outcomes: z.union([z.string(), z.array(z.string())]).nullable().optional(),
+  clobTokenIds: z
+    .union([z.string(), z.array(z.string())])
+    .nullable()
+    .optional(),
 })
 
 export type GammaMarket = z.infer<typeof gammaMarketSchema>
@@ -60,7 +63,6 @@ export interface MarketSocketMessage {
 
 export const clobPriceHistoryIntervalSchema = z.enum([
   'max',
-  'all',
   '1m',
   '1h',
   '6h',

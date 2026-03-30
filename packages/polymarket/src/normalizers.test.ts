@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { normalizeGammaMarket, normalizeSocketMessage } from './normalizers'
+import {
+  normalizeGammaMarket,
+  normalizeGammaMarkets,
+  normalizeSocketMessage,
+} from './normalizers'
 
 describe('normalizeGammaMarket', () => {
   it('extracts market and token metadata from the Gamma payload', () => {
@@ -21,6 +25,26 @@ describe('normalizeGammaMarket', () => {
         { id: 'token_no', outcome: 'No', outcomeIndex: 1 },
       ],
     })
+  })
+
+  it('skips rows with null required Gamma fields when normalizing a list', () => {
+    const valid = JSON.parse(
+      readFileSync(
+        new URL('../test/fixtures/gamma-market.json', import.meta.url),
+        'utf8',
+      ),
+    )
+
+    expect(
+      normalizeGammaMarkets([
+        valid,
+        {
+          ...valid,
+          id: null,
+          question: null,
+        },
+      ]),
+    ).toEqual([normalizeGammaMarket(valid)])
   })
 })
 

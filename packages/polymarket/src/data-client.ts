@@ -62,13 +62,13 @@ export class DataClient {
   }
 
   getValue(user: string) {
-    return fetchJson<Record<string, unknown>>(
+    return fetchJson<Array<Record<string, unknown>>>(
       `${this.baseUrl}${withQuery('/value', { user })}`,
     )
   }
 
   getOpenInterest(market: string) {
-    return fetchJson<Record<string, unknown>>(
+    return fetchJson<Array<Record<string, unknown>>>(
       `${this.baseUrl}${withQuery('/oi', { market })}`,
     )
   }

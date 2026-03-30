@@ -1,5 +1,5 @@
 import { fetchJson } from './http'
-import { normalizeGammaMarket } from './normalizers'
+import { normalizeGammaMarkets } from './normalizers'
 import type { GammaMarket, NormalizedMarket } from './types'
 
 function withQuery(
@@ -30,7 +30,7 @@ export class GammaClient {
       `${this.baseUrl}${withQuery('/markets', query)}`,
     )
 
-    return payload.map(normalizeGammaMarket)
+    return normalizeGammaMarkets(payload)
   }
 
   listEvents(query?: Record<string, string | number | boolean | undefined>) {

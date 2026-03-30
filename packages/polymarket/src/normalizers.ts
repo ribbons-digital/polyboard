@@ -30,20 +30,31 @@ function parseNumeric(value: string | number): number {
   return result
 }
 
+function requireValue<T>(
+  value: T | null | undefined,
+  fieldName: string,
+): T {
+  if (value === null || value === undefined) {
+    throw new Error(`Expected ${fieldName} to be present`)
+  }
+
+  return value
+}
+
 export function normalizeGammaMarket(input: GammaMarket): NormalizedMarket {
   const market = gammaMarketSchema.parse(input)
-  const outcomes = parseList(market.outcomes)
-  const tokenIds = parseList(market.clobTokenIds)
+  const outcomes = parseList(requireValue(market.outcomes, 'outcomes'))
+  const tokenIds = parseList(requireValue(market.clobTokenIds, 'clobTokenIds'))
 
   return {
-    id: market.id,
-    conditionId: market.conditionId,
-    question: market.question,
-    slug: market.slug,
-    active: market.active,
-    closed: market.closed,
-    volume: parseNumeric(market.volume),
-    liquidity: parseNumeric(market.liquidity),
+    id: requireValue(market.id, 'id'),
+    conditionId: requireValue(market.conditionId, 'conditionId'),
+    question: requireValue(market.question, 'question'),
+    slug: requireValue(market.slug, 'slug'),
+    active: requireValue(market.active, 'active'),
+    closed: requireValue(market.closed, 'closed'),
+    volume: parseNumeric(requireValue(market.volume, 'volume')),
+    liquidity: parseNumeric(requireValue(market.liquidity, 'liquidity')),
     category: market.category ?? null,
     endDate: market.endDate ?? null,
     tokens: tokenIds.map((id, outcomeIndex) => ({
@@ -52,6 +63,18 @@ export function normalizeGammaMarket(input: GammaMarket): NormalizedMarket {
       outcomeIndex,
     })),
   }
+}
+
+export function normalizeGammaMarkets(
+  input: GammaMarket[],
+): NormalizedMarket[] {
+  return input.flatMap((market) => {
+    try {
+      return [normalizeGammaMarket(market)]
+    } catch {
+      return []
+    }
+  })
 }
 
 export function normalizeSocketMessage(
