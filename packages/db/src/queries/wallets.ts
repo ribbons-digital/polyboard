@@ -28,6 +28,30 @@ export async function upsertWalletProfiles(
   const now = new Date()
 
   for (const row of rows) {
+    const updateSet: Record<string, unknown> = {
+      updatedAt: now,
+    }
+
+    if (row.displayName !== undefined) {
+      updateSet.displayName = row.displayName ?? null
+    }
+
+    if (row.pseudonym !== undefined) {
+      updateSet.pseudonym = row.pseudonym ?? null
+    }
+
+    if (row.verified !== undefined) {
+      updateSet.verified = row.verified
+    }
+
+    if (row.profileImage !== undefined) {
+      updateSet.profileImage = row.profileImage ?? null
+    }
+
+    if (row.metadata !== undefined) {
+      updateSet.metadata = row.metadata
+    }
+
     await db
       .insert(wallets)
       .values({
@@ -41,14 +65,7 @@ export async function upsertWalletProfiles(
       })
       .onConflictDoUpdate({
         target: wallets.address,
-        set: {
-          displayName: row.displayName ?? null,
-          metadata: row.metadata ?? {},
-          profileImage: row.profileImage ?? null,
-          pseudonym: row.pseudonym ?? null,
-          updatedAt: now,
-          verified: row.verified ?? false,
-        },
+        set: updateSet,
       })
   }
 }
@@ -117,28 +134,30 @@ export async function replaceOpenPositions(
   walletAddress: string,
   rows: OpenPositionInput[],
 ) {
-  await db
-    .delete(walletPositionsOpen)
-    .where(eq(walletPositionsOpen.walletAddress, walletAddress))
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(walletPositionsOpen)
+      .where(eq(walletPositionsOpen.walletAddress, walletAddress))
 
-  if (rows.length === 0) {
-    return
-  }
+    if (rows.length === 0) {
+      return
+    }
 
-  await db.insert(walletPositionsOpen).values(
-    rows.map((row) => ({
-      averagePrice: String(row.averagePrice),
-      currentValue: String(row.currentValue),
-      marketId: row.marketId,
-      outcome: row.outcome,
-      realizedPnl: String(row.realizedPnl),
-      size: String(row.size),
-      tokenId: row.tokenId,
-      totalPnl: String(row.totalPnl),
-      updatedAt: new Date(),
-      walletAddress,
-    })),
-  )
+    await tx.insert(walletPositionsOpen).values(
+      rows.map((row) => ({
+        averagePrice: String(row.averagePrice),
+        currentValue: String(row.currentValue),
+        marketId: row.marketId,
+        outcome: row.outcome,
+        realizedPnl: String(row.realizedPnl),
+        size: String(row.size),
+        tokenId: row.tokenId,
+        totalPnl: String(row.totalPnl),
+        updatedAt: new Date(),
+        walletAddress,
+      })),
+    )
+  })
 }
 
 export interface ClosedPositionInput {
@@ -156,26 +175,28 @@ export async function replaceClosedPositions(
   walletAddress: string,
   rows: ClosedPositionInput[],
 ) {
-  await db
-    .delete(walletPositionsClosed)
-    .where(eq(walletPositionsClosed.walletAddress, walletAddress))
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(walletPositionsClosed)
+      .where(eq(walletPositionsClosed.walletAddress, walletAddress))
 
-  if (rows.length === 0) {
-    return
-  }
+    if (rows.length === 0) {
+      return
+    }
 
-  await db.insert(walletPositionsClosed).values(
-    rows.map((row) => ({
-      averagePrice: String(row.averagePrice),
-      closedAt: row.closedAt,
-      marketId: row.marketId,
-      outcome: row.outcome,
-      realizedPnl: String(row.realizedPnl),
-      tokenId: row.tokenId,
-      totalBought: String(row.totalBought),
-      walletAddress,
-    })),
-  )
+    await tx.insert(walletPositionsClosed).values(
+      rows.map((row) => ({
+        averagePrice: String(row.averagePrice),
+        closedAt: row.closedAt,
+        marketId: row.marketId,
+        outcome: row.outcome,
+        realizedPnl: String(row.realizedPnl),
+        tokenId: row.tokenId,
+        totalBought: String(row.totalBought),
+        walletAddress,
+      })),
+    )
+  })
 }
 
 export interface WalletTradeInput {
@@ -193,26 +214,30 @@ export async function replaceTrades(
   walletAddress: string,
   rows: WalletTradeInput[],
 ) {
-  await db.delete(walletTrades).where(eq(walletTrades.walletAddress, walletAddress))
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(walletTrades)
+      .where(eq(walletTrades.walletAddress, walletAddress))
 
-  if (rows.length === 0) {
-    return
-  }
+    if (rows.length === 0) {
+      return
+    }
 
-  for (const row of rows) {
-    await db
-      .insert(walletTrades)
-      .values({
-        marketId: row.marketId,
-        price: String(row.price),
-        side: row.side,
-        size: String(row.size),
-        tokenId: row.tokenId,
-        tradedAt: row.tradedAt,
-        transactionHash: row.transactionHash,
-        walletAddress,
-      })
-  }
+    for (const row of rows) {
+      await tx
+        .insert(walletTrades)
+        .values({
+          marketId: row.marketId,
+          price: String(row.price),
+          side: row.side,
+          size: String(row.size),
+          tokenId: row.tokenId,
+          tradedAt: row.tradedAt,
+          transactionHash: row.transactionHash,
+          walletAddress,
+        })
+    }
+  })
 }
 
 export interface WalletEventStatInput {
@@ -227,24 +252,26 @@ export async function replaceWalletEventStats(
   walletAddress: string,
   rows: WalletEventStatInput[],
 ) {
-  await db
-    .delete(walletEventStats)
-    .where(eq(walletEventStats.walletAddress, walletAddress))
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(walletEventStats)
+      .where(eq(walletEventStats.walletAddress, walletAddress))
 
-  if (rows.length === 0) {
-    return
-  }
+    if (rows.length === 0) {
+      return
+    }
 
-  await db.insert(walletEventStats).values(
-    rows.map((row) => ({
-      eventSlug: row.eventSlug,
-      realizedPnl: String(row.realizedPnl),
-      totalVolume: String(row.totalVolume),
-      tradeCount: row.tradeCount,
-      updatedAt: new Date(),
-      walletAddress,
-    })),
-  )
+    await tx.insert(walletEventStats).values(
+      rows.map((row) => ({
+        eventSlug: row.eventSlug,
+        realizedPnl: String(row.realizedPnl),
+        totalVolume: String(row.totalVolume),
+        tradeCount: row.tradeCount,
+        updatedAt: new Date(),
+        walletAddress,
+      })),
+    )
+  })
 }
 
 export async function getWalletDetailData(

@@ -133,8 +133,13 @@ export async function runBackfillOnce(deps: BackfillDeps) {
       deps.dataClient.getTrades({ user: wallet.address }),
       deps.dataClient.getValue(wallet.address),
     ])
+    const trackedConditionIds = collectConditionIds(
+      openRows,
+      closedRows,
+      tradeRows,
+    )
     const marketIdLookup = await deps.marketRepo.listMarketIdsByConditionIds(
-      collectConditionIds(openRows, closedRows, tradeRows),
+      trackedConditionIds,
     )
     const mappedOpenPositions = mapOpenPositions(openRows, marketIdLookup)
     const mappedClosedPositions = mapClosedPositions(closedRows, marketIdLookup)
@@ -187,11 +192,7 @@ export async function runBackfillOnce(deps: BackfillDeps) {
       winRate: metrics.winRate,
     })
 
-    for (const conditionId of new Set(
-      tradeRows
-        .map((row) => getConditionId(row))
-        .filter((value): value is string => value !== null),
-    )) {
+    for (const conditionId of trackedConditionIds) {
       const marketId = marketIdLookup.get(conditionId)
 
       if (marketId === undefined) {

@@ -107,6 +107,65 @@ describe('runBackfillOnce', () => {
     ])
   })
 
+  it('refreshes market holders for markets seen only in positions', async () => {
+    const replaceMarketHolders = vi.fn(async () => undefined)
+
+    await runBackfillOnce({
+      dataClient: {
+        getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
+        getPositions: async () => [
+          {
+            asset: 'token-1',
+            avgPrice: 0.45,
+            conditionId: '0xcondition',
+            currentValue: 8,
+            outcome: 'Yes',
+            realizedPnl: 1,
+            size: 10,
+            totalPnl: 2,
+          },
+        ],
+        getClosedPositions: async () => [],
+        getTrades: async () => [],
+        getHolders: async () => [
+          {
+            holders: [
+              {
+                amount: 42,
+                asset: 'token-1',
+                proxyWallet: '0xholder',
+              },
+            ],
+            token: 'token-1',
+          },
+        ],
+        getValue: async () => [{ value: 12 }],
+      },
+      marketRepo: {
+        listMarketIdsByConditionIds: async () =>
+          new Map([['0xcondition', 'market-1']]),
+        replaceMarketHolders,
+      },
+      walletRepo: {
+        replaceClosedPositions: vi.fn(async () => undefined),
+        replaceOpenPositions: vi.fn(async () => undefined),
+        replaceTrades: vi.fn(async () => undefined),
+        replaceWalletEventStats: vi.fn(async () => undefined),
+        upsertWalletProfiles: vi.fn(async () => undefined),
+        upsertWalletScore: vi.fn(async () => undefined),
+      },
+    })
+
+    expect(replaceMarketHolders).toHaveBeenCalledWith('market-1', [
+      {
+        currentValue: undefined,
+        size: 42,
+        tokenId: 'token-1',
+        walletAddress: '0xholder',
+      },
+    ])
+  })
+
   it('skips malformed trade timestamps instead of coercing them to now', async () => {
     const replaceTrades = vi.fn(async () => undefined)
     const replaceWalletEventStats = vi.fn(async () => undefined)
