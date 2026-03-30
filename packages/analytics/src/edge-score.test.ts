@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { computeEdgeScore, deriveWalletTags } from './index'
+import {
+  computeEdgeScore,
+  deriveWalletTags,
+  summarizeWalletMetrics,
+} from './index'
 
 describe('computeEdgeScore', () => {
   it('blends structure, smart-money, and timing scores using the configured weights', () => {
@@ -31,5 +35,36 @@ describe('deriveWalletTags', () => {
         averageHoldingHours: 8,
       }),
     ).toEqual(expect.arrayContaining(['high-conviction', 'event-specialist']))
+  })
+})
+
+describe('summarizeWalletMetrics', () => {
+  it('does not label wallets with no closed history as fast-flippers', () => {
+    const metrics = summarizeWalletMetrics({
+      closedPositions: [],
+      realizedPnl: 0,
+      unrealizedPnl: 0,
+    })
+
+    expect(deriveWalletTags(metrics)).not.toContain('fast-flipper')
+  })
+
+  it('treats missing category and hold-time data as unavailable instead of zero', () => {
+    const metrics = summarizeWalletMetrics({
+      closedPositions: [
+        {
+          category: null,
+          holdHours: null,
+          size: 100,
+          won: true,
+        },
+      ],
+      realizedPnl: 5,
+      unrealizedPnl: 2,
+    })
+
+    expect(metrics.averageHoldingHours).toBe(Number.POSITIVE_INFINITY)
+    expect(metrics.categoryConcentration).toBe(0)
+    expect(metrics.topCategory).toBe('General')
   })
 })

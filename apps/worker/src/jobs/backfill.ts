@@ -7,7 +7,9 @@ type RawRow = Record<string, unknown>
 
 export interface BackfillDeps {
   dataClient: {
-    getLeaderboard: () => Promise<RawRow[]>
+    getLeaderboard: (
+      query?: Record<string, string | number | boolean | undefined>,
+    ) => Promise<RawRow[]>
     getPositions: (user: string) => Promise<RawRow[]>
     getClosedPositions: (user: string) => Promise<RawRow[]>
     getTrades: (
@@ -101,7 +103,7 @@ export interface BackfillDeps {
 }
 
 export async function runBackfillOnce(deps: BackfillDeps) {
-  const leaderboard = await deps.dataClient.getLeaderboard()
+  const leaderboard = await deps.dataClient.getLeaderboard({ limit: 50 })
   const walletProfiles = leaderboard.flatMap((row) => {
     const address = getAddress(row)
 
@@ -112,11 +114,12 @@ export async function runBackfillOnce(deps: BackfillDeps) {
     return [
       {
         address,
-        displayName: getOptionalString(row.name),
+        displayName:
+          getOptionalString(row.userName) ?? getOptionalString(row.name),
         metadata: row,
         profileImage: getOptionalString(row.profileImage),
         pseudonym: getOptionalString(row.pseudonym),
-        verified: getBoolean(row.verified),
+        verified: getBoolean(row.verifiedBadge) || getBoolean(row.verified),
       },
     ]
   })
@@ -139,7 +142,15 @@ export async function runBackfillOnce(deps: BackfillDeps) {
       closedRows,
       marketIdLookup,
     )
+    const closedPositionEventStats = mapClosedPositionEventStats(
+      closedRows,
+      marketIdLookup,
+    )
     const mappedTrades = mapTrades(tradeRows, marketIdLookup)
+    const mappedTradeEventStats = mapTradeEventStats(
+      tradeRows,
+      marketIdLookup,
+    )
     const unrealizedPnl = getNumericValue(valueRows[0]?.value)
 
     await deps.walletRepo.replaceOpenPositions(
@@ -153,7 +164,7 @@ export async function runBackfillOnce(deps: BackfillDeps) {
     await deps.walletRepo.replaceTrades(wallet.address, mappedTrades)
     await deps.walletRepo.replaceWalletEventStats(
       wallet.address,
-      buildEventStats(tradeRows),
+      buildEventStats(mappedTradeEventStats, closedPositionEventStats),
     )
 
     const metrics = summarizeWalletMetrics({
@@ -296,8 +307,8 @@ function mapClosedPositionMetrics(
 
     return [
       {
-        category: getOptionalString(row.category),
-        holdHours: 24,
+        category: null,
+        holdHours: null,
         realizedPnl: getNumericValue(row.realizedPnl),
         size: getNumericValue(row.totalBought),
         won: getNumericValue(row.realizedPnl) > 0,
@@ -344,23 +355,82 @@ function normalizeHolderRow(
   ]
 }
 
-function buildEventStats(trades: RawRow[]) {
+function mapTradeEventStats(
+  rows: RawRow[],
+  marketIdLookup: Map<string, string>,
+) {
+  return rows.flatMap((row) => {
+    const mapped = mapMarketRow(row, marketIdLookup)
+    const tradedAt = getDateValue(row.timestamp)
+    const transactionHash =
+      getOptionalString(row.transactionHash) ?? getOptionalString(row.hash)
+
+    if (mapped === null || tradedAt === null || transactionHash === null) {
+      return []
+    }
+
+    return [
+      {
+        eventSlug: getOptionalString(row.eventSlug) ?? 'unknown',
+        totalVolume: getNumericValue(row.size),
+        tradeCount: 1,
+      },
+    ]
+  })
+}
+
+function mapClosedPositionEventStats(
+  rows: RawRow[],
+  marketIdLookup: Map<string, string>,
+) {
+  return rows.flatMap((row) => {
+    const mapped = mapMarketRow(row, marketIdLookup)
+    const closedAt = getDateValue(row.timestamp)
+
+    if (mapped === null || closedAt === null) {
+      return []
+    }
+
+    return [
+      {
+        eventSlug: getOptionalString(row.eventSlug) ?? 'unknown',
+        realizedPnl: getNumericValue(row.realizedPnl),
+      },
+    ]
+  })
+}
+
+function buildEventStats(
+  trades: Array<{ eventSlug: string; tradeCount: number; totalVolume: number }>,
+  closedPositions: Array<{ eventSlug: string; realizedPnl: number }>,
+) {
   const byEvent = new Map<
     string,
     { tradeCount: number; realizedPnl: number; totalVolume: number }
   >()
 
   for (const trade of trades) {
-    const eventSlug = getOptionalString(trade.eventSlug) ?? 'unknown'
+    const eventSlug = trade.eventSlug
     const current = byEvent.get(eventSlug) ?? {
       realizedPnl: 0,
       totalVolume: 0,
       tradeCount: 0,
     }
 
-    current.tradeCount += 1
-    current.totalVolume += getNumericValue(trade.size)
-    current.realizedPnl += getNumericValue(trade.realizedPnl)
+    current.tradeCount += trade.tradeCount
+    current.totalVolume += trade.totalVolume
+    byEvent.set(eventSlug, current)
+  }
+
+  for (const position of closedPositions) {
+    const eventSlug = position.eventSlug
+    const current = byEvent.get(eventSlug) ?? {
+      realizedPnl: 0,
+      totalVolume: 0,
+      tradeCount: 0,
+    }
+
+    current.realizedPnl += position.realizedPnl
     byEvent.set(eventSlug, current)
   }
 
