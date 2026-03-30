@@ -10,16 +10,19 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@polyboard/db": "workspace:*",
     "@tanstack/react-query": "^5.95.2",
     "@tanstack/react-query-devtools": "^5.95.2",
     "@tanstack/react-router": "^1.114.3",
     "@tanstack/react-router-devtools": "^1.114.3",
     "@tanstack/react-start": "^1.114.3",
     "@tanstack/react-table": "^8.21.3",
+    "drizzle-orm": "^0.44.5",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "recharts": "^2.15.4",
-    "srvx": "^0.11.13"
+    "srvx": "^0.11.13",
+    "zod": "^4.1.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
