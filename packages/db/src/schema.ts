@@ -1,6 +1,7 @@
 import {
   bigint,
   boolean,
+  check,
   integer,
   jsonb,
   numeric,
@@ -10,6 +11,7 @@ import {
   timestamp,
   varchar,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 
 export const events = pgTable('events', {
   id: text('id').primaryKey(),
@@ -80,17 +82,23 @@ export const walletWatchlists = pgTable('wallet_watchlists', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
 })
 
-export const appSettings = pgTable('app_settings', {
-  id: integer('id').primaryKey().default(1),
-  minMarketVolume: integer('min_market_volume').notNull().default(50000),
-  scoreWeights: jsonb('score_weights').notNull().default({
-    marketStructure: 0.4,
-    smartMoney: 0.4,
-    timing: 0.2,
+export const appSettings = pgTable(
+  'app_settings',
+  {
+    id: integer('id').primaryKey().default(1),
+    minMarketVolume: integer('min_market_volume').notNull().default(50000),
+    scoreWeights: jsonb('score_weights').notNull().default({
+      marketStructure: 0.4,
+      smartMoney: 0.4,
+      timing: 0.2,
+    }),
+    trackedCategories: jsonb('tracked_categories').notNull().default([]),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    singleton: check('app_settings_singleton', sql`${table.id} = 1`),
   }),
-  trackedCategories: jsonb('tracked_categories').notNull().default([]),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
-})
+)
 
 export const marketSnapshots = pgTable('market_snapshots', {
   id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),

@@ -1,0 +1,1 @@
+ALTER TABLE "app_settings" ADD CONSTRAINT "app_settings_singleton" CHECK ("app_settings"."id" = 1);
