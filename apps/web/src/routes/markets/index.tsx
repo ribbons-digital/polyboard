@@ -24,12 +24,7 @@ function MarketsPage() {
           into one ranked tape.
         </p>
       </div>
-      <MarketsTable
-        rows={data.rows.map((row) => ({
-          ...row,
-          freshness: 'fresh' as const,
-        }))}
-      />
+      <MarketsTable rows={data.rows} />
     </section>
   )
 }

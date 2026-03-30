@@ -28,10 +28,14 @@ function toStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === 'string')
 }
 
-export async function listWalletLeaderboard() {
+export interface WalletLeaderboardInput {
+  limit?: number
+}
+
+export async function listWalletLeaderboard(filters: WalletLeaderboardInput = {}) {
   const db = createDb()
 
-  const rows = await db
+  const query = db
     .select({
       address: wallets.address,
       averagePositionSize: sql<number>`(${walletScores.averagePositionSize})::float`,
@@ -47,6 +51,10 @@ export async function listWalletLeaderboard() {
     .innerJoin(wallets, eq(wallets.address, walletScores.walletAddress))
     .leftJoin(walletWatchlists, eq(walletWatchlists.address, wallets.address))
     .orderBy(desc(walletScores.totalPnl))
+
+  const rows = await (filters.limit === undefined
+    ? query
+    : query.limit(filters.limit))
 
   return rows.map((row) => ({
     ...row,

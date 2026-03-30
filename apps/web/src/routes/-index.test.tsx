@@ -38,6 +38,8 @@ vi.mock('../features/wallets/server', () => ({
 }))
 
 import { loadDashboardRouteData } from '../features/route-loaders'
+import { getMarketLeaderboard } from '../features/markets/server'
+import { getWalletLeaderboard } from '../features/wallets/server'
 
 describe('dashboard route loader', () => {
   it('loads freshness alongside dashboard data', async () => {
@@ -51,5 +53,11 @@ describe('dashboard route loader', () => {
     })
     expect(data?.markets).toHaveLength(1)
     expect(data?.wallets).toHaveLength(1)
+    expect(getMarketLeaderboard).toHaveBeenCalledWith({
+      data: { limit: 5, minEdge: 0.2 },
+    })
+    expect(getWalletLeaderboard).toHaveBeenCalledWith({
+      data: { limit: 5 },
+    })
   })
 })

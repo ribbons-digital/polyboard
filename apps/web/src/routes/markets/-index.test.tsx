@@ -35,5 +35,6 @@ describe('markets route loader', () => {
       },
     })
     expect(data?.rows).toHaveLength(1)
+    expect(data?.rows[0]?.freshness).toBe('degraded')
   })
 })

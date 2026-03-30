@@ -9,8 +9,9 @@ import {
 import { and, asc, desc, eq, gte, ilike, sql } from 'drizzle-orm'
 
 export interface MarketFilterInput {
-  minEdge?: number
   category?: string
+  limit?: number
+  minEdge?: number
   search?: string
 }
 
@@ -63,7 +64,7 @@ export function applyMarketFilters<
 export async function listMarketLeaderboard(filters: MarketFilterInput) {
   const db = createDb()
 
-  return db
+  const query = db
     .select({
       category: markets.category,
       edgeScore: sql<number>`(${marketScores.edgeScore})::float`,
@@ -100,6 +101,8 @@ export async function listMarketLeaderboard(filters: MarketFilterInput) {
       marketScores.timingScore,
     )
     .orderBy(desc(marketScores.edgeScore))
+
+  return filters.limit === undefined ? query : query.limit(filters.limit)
 }
 
 export async function getMarketDetail(marketId: string) {

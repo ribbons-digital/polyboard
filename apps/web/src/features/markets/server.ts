@@ -4,6 +4,7 @@ import { getMarketDetail, listMarketLeaderboard } from './service'
 
 const filterSchema = z.object({
   category: z.string().optional(),
+  limit: z.number().int().positive().max(100).optional(),
   minEdge: z.number().optional(),
   search: z.string().optional(),
 })

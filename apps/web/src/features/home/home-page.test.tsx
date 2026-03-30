@@ -48,6 +48,22 @@ describe('HomePage', () => {
     ).toBeInTheDocument()
   })
 
+  it('renders the fallback banner when live bootstrap fails', () => {
+    render(
+      <HomePage
+        summary={{
+          label: 'fallback',
+          message: 'Using fallback seed data because live bootstrap failed.',
+        }}
+      />,
+    )
+
+    expect(screen.getByText(/^fallback$/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/using fallback seed data because live bootstrap failed/i),
+    ).toBeInTheDocument()
+  })
+
   it('removes the redundant settings teaser card', () => {
     const view = render(<HomePage />)
 
