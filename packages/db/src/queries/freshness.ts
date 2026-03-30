@@ -92,6 +92,11 @@ export function summarizeDashboardUsability(input: DashboardUsabilityInput) {
   )
 
   return {
+    hasFallbackRows: freshnessCoreSourceKeys.some((sourceKey) => {
+      const row = freshnessBySource.get(sourceKey)
+
+      return row !== undefined && row.status === 'fallback'
+    }),
     hasFreshnessRows: freshnessCoreSourceKeys.every((sourceKey) =>
       freshnessBySource.has(sourceKey),
     ),

@@ -10,6 +10,7 @@ import {
 } from '@polyboard/db'
 
 type DashboardUsability = {
+  hasFallbackRows?: boolean
   hasFreshnessRows: boolean
   hasMarketScores: boolean
   hasWalletScores: boolean
@@ -117,6 +118,12 @@ async function handleLiveBootstrapFailure(
   }
 
   try {
+    if (state.hasFallbackRows === true) {
+      await deps.markCoreFreshness('fallback')
+      await deps.markFreshness('fallback')
+      return 'fallback'
+    }
+
     if (shouldRunFallbackSeed({ bootstrapFailed: true, ...state })) {
       await deps.runFallbackSeed()
       await deps.markCoreFreshness('fallback')
