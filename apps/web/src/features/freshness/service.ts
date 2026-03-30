@@ -20,17 +20,18 @@ const CORE_SOURCE_KEYS = [
 ] as const
 
 export function summarizeFreshness(rows: FreshnessRow[]): FreshnessSummary {
-  if (rows.some((row) => row.status === 'fallback')) {
+  const statusBySource = new Map(rows.map((row) => [row.sourceKey, row.status]))
+  const coreStatuses = CORE_SOURCE_KEYS.map((sourceKey) =>
+    statusBySource.get(sourceKey),
+  )
+  const allCoreSourcesLive = coreStatuses.every((status) => status === 'live')
+
+  if (coreStatuses.some((status) => status === 'fallback')) {
     return {
       label: 'fallback',
       message: 'Using fallback seed data because live bootstrap failed.',
     }
   }
-
-  const statusBySource = new Map(rows.map((row) => [row.sourceKey, row.status]))
-  const allCoreSourcesLive = CORE_SOURCE_KEYS.every(
-    (sourceKey) => statusBySource.get(sourceKey) === 'live',
-  )
 
   if (allCoreSourcesLive) {
     return {

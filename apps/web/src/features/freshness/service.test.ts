@@ -15,7 +15,7 @@ describe('summarizeFreshness', () => {
     })
   })
 
-  it('reports fallback when any source is fallback', () => {
+  it('reports fallback when a core source is fallback', () => {
     expect(
       summarizeFreshness([
         { sourceKey: 'gamma:markets', status: 'live' },
@@ -25,6 +25,20 @@ describe('summarizeFreshness', () => {
     ).toEqual({
       label: 'fallback',
       message: 'Using fallback seed data because live bootstrap failed.',
+    })
+  })
+
+  it('ignores fallback rows outside the core sources', () => {
+    expect(
+      summarizeFreshness([
+        { sourceKey: 'gamma:markets', status: 'live' },
+        { sourceKey: 'data:wallets', status: 'live' },
+        { sourceKey: 'scores:markets', status: 'live' },
+        { sourceKey: 'worker:bootstrap', status: 'fallback' },
+      ]),
+    ).toEqual({
+      label: 'live',
+      message: 'Live Polymarket data is flowing through the worker.',
     })
   })
 
