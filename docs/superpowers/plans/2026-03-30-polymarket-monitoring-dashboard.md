@@ -1435,7 +1435,8 @@ export class MarketSocket extends EventEmitter {
       this.socket?.send(
         JSON.stringify({
           assets_ids: assetIds,
-          type: 'subscribe',
+          custom_feature_enabled: true,
+          type: 'market',
         }),
       )
     })

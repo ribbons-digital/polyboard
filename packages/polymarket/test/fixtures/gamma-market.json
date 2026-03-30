@@ -1,0 +1,14 @@
+{
+  "id": "12345",
+  "conditionId": "0xcondition",
+  "question": "Will BTC close above $100k on Friday?",
+  "slug": "btc-above-100k-friday",
+  "active": true,
+  "closed": false,
+  "volume": "125000.50",
+  "liquidity": "42000.10",
+  "category": "Crypto",
+  "outcomes": "[\"Yes\",\"No\"]",
+  "clobTokenIds": "[\"token_yes\",\"token_no\"]",
+  "endDate": "2026-03-31T16:00:00Z"
+}
