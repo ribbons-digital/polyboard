@@ -1,0 +1,77 @@
+:root {
+  color-scheme: dark;
+  --bg: #07131a;
+  --panel: #10232d;
+  --panel-alt: #15313c;
+  --text: #e8f4f1;
+  --muted: #9fb9b4;
+  --accent: #64d7b4;
+  --border: rgba(255, 255, 255, 0.08);
+  font-family: "IBM Plex Sans", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top right, rgba(100, 215, 180, 0.18), transparent 30%),
+    linear-gradient(180deg, #07131a 0%, #0c1e27 100%);
+  color: var(--text);
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.topbar,
+.hero-grid,
+.quick-links {
+  display: grid;
+  gap: 16px;
+}
+
+.topbar {
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  margin-bottom: 24px;
+}
+
+.nav {
+  display: flex;
+  gap: 16px;
+}
+
+.nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.page,
+.hero-card,
+.surface {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: rgba(16, 35, 45, 0.82);
+  backdrop-filter: blur(10px);
+}
+
+.page {
+  padding: 24px;
+}
+
+.hero-card,
+.surface {
+  padding: 20px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+}
