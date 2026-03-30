@@ -118,7 +118,12 @@ async function handleLiveBootstrapFailure(
   }
 
   try {
-    if (state.hasFallbackRows === true) {
+    if (
+      state.hasFallbackRows === true &&
+      state.hasFreshnessRows &&
+      state.hasMarketScores &&
+      state.hasWalletScores
+    ) {
       await deps.markFreshness('fallback')
       return 'fallback'
     }

@@ -109,6 +109,65 @@ describe('shouldRunFallbackSeed', () => {
       'fallback',
     )
   })
+
+  it('reseeds when fallback freshness exists but dashboard scores are missing', async () => {
+    const getDashboardUsability = vi.fn(async () => ({
+      hasFallbackRows: true,
+      hasFreshnessRows: true,
+      hasMarketScores: false,
+      hasWalletScores: true,
+    }))
+    const updateFreshness = vi.fn(async () => undefined)
+    const seedFallback = vi.fn(async () => undefined)
+
+    await expect(
+      runWorkerBootstrap(
+        {
+          repos: {
+            freshnessRepo: {
+              getDashboardUsability,
+              updateFreshness,
+            },
+            marketRepo: {
+              listMarketIdsByConditionIds: vi.fn(),
+              listSignalInputs: vi.fn(),
+              replaceMarketHolders: vi.fn(),
+              replaceTags: vi.fn(),
+              upsertMarkets: vi.fn(),
+              upsertScore: vi.fn(),
+            },
+            walletRepo: {
+              replaceClosedPositions: vi.fn(),
+              replaceOpenPositions: vi.fn(),
+              replaceTrades: vi.fn(),
+              replaceWalletEventStats: vi.fn(),
+              upsertWalletProfiles: vi.fn(),
+              upsertWalletScore: vi.fn(),
+            },
+          },
+          seedFallback,
+        },
+        {
+          runLiveBootstrap: vi.fn(async () => {
+            throw new Error('gamma unavailable')
+          }),
+        },
+      ),
+    ).resolves.toBe('fallback')
+
+    expect(getDashboardUsability).toHaveBeenCalledTimes(1)
+    expect(seedFallback).toHaveBeenCalledTimes(1)
+    expect(updateFreshness).toHaveBeenCalledWith(
+      'gamma:markets',
+      'fallback',
+      'fallback',
+    )
+    expect(updateFreshness).toHaveBeenCalledWith(
+      'worker:bootstrap',
+      'fallback',
+      'fallback',
+    )
+  })
 })
 
 describe('bootstrapWorkerData', () => {
