@@ -8,9 +8,18 @@ Private Polymarket research dashboard built with TanStack Start and a separate i
 2. `pnpm install`
 3. `pnpm db:up`
 4. `pnpm --filter @polyboard/db db:push`
-5. `pnpm seed:dev`
-6. `pnpm --filter @polyboard/web exec playwright install`
-7. `pnpm dev`
+5. `pnpm dev`
+
+If Polymarket is reachable, the worker bootstraps live data automatically.
+
+If Polymarket is unavailable and the dashboard does not already have usable data,
+the worker seeds fallback data automatically.
+
+Use `pnpm seed:dev` only when you want to reseed fallback data manually.
+
+Install Playwright only if you want to run browser automation locally:
+
+`pnpm --filter @polyboard/web exec playwright install`
 
 ## Services
 
@@ -29,3 +38,4 @@ Private Polymarket research dashboard built with TanStack Start and a separate i
 
 - web: `GET /api/health`
 - worker: `buildWorkerHealth()` in `apps/worker/src/health.ts`
+- web health exposes individual freshness rows, including `worker:bootstrap`
