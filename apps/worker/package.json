@@ -9,6 +9,7 @@
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@polyboard/analytics": "workspace:*",
     "@polyboard/db": "workspace:*",
     "@polyboard/polymarket": "workspace:*",
     "pino": "^9.9.0",
