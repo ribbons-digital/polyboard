@@ -256,4 +256,84 @@ describe('startRefreshScheduler', () => {
 
     scheduler.stop()
   })
+
+  it('marks a source degraded when its recurring job fails', async () => {
+    vi.useFakeTimers()
+
+    const updateFreshness = vi.fn(async () => undefined)
+    const runtime = {
+      dataClient: {
+        getClosedPositions: vi.fn(),
+        getHolders: vi.fn(),
+        getLeaderboard: vi.fn(),
+        getPositions: vi.fn(),
+        getTrades: vi.fn(),
+        getValue: vi.fn(),
+      },
+      env: {
+        discoveryIntervalMs: 1_000,
+        minMarketVolume: 50_000,
+        scoreRefreshIntervalMs: 1_500,
+        walletRefreshIntervalMs: 2_000,
+      },
+      gammaClient: { getMarketTags: vi.fn(), listMarkets: vi.fn() },
+      logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+      repos: {
+        freshnessRepo: { updateFreshness },
+        marketRepo: {
+          listMarketIdsByConditionIds: vi.fn(),
+          listSignalInputs: vi.fn(),
+          replaceMarketHolders: vi.fn(),
+          replaceTags: vi.fn(),
+          upsertMarkets: vi.fn(),
+          upsertScore: vi.fn(),
+        },
+        walletRepo: {
+          replaceClosedPositions: vi.fn(),
+          replaceOpenPositions: vi.fn(),
+          replaceTrades: vi.fn(),
+          replaceWalletEventStats: vi.fn(),
+          upsertWalletProfiles: vi.fn(),
+          upsertWalletScore: vi.fn(),
+        },
+      },
+      settingsRepo: {
+        getSettings: vi.fn(async () => ({
+          scoreWeights: { marketStructure: 0.3, smartMoney: 0.5, timing: 0.2 },
+        })),
+      },
+    }
+
+    const scheduler = startRuntimeRefreshScheduler(runtime, {
+      recomputeMarketScores: vi.fn(async () => {
+        throw new Error('score refresh failed')
+      }),
+      runBackfillOnce: vi.fn(async () => {
+        throw new Error('wallet backfill failed')
+      }),
+      runDiscoveryOnce: vi.fn(async () => {
+        throw new Error('discovery failed')
+      }),
+    })
+
+    await vi.advanceTimersByTimeAsync(2_000)
+
+    expect(updateFreshness).toHaveBeenCalledWith(
+      'gamma:markets',
+      'degraded',
+      'degraded',
+    )
+    expect(updateFreshness).toHaveBeenCalledWith(
+      'scores:markets',
+      'degraded',
+      'degraded',
+    )
+    expect(updateFreshness).toHaveBeenCalledWith(
+      'data:wallets',
+      'degraded',
+      'degraded',
+    )
+
+    scheduler.stop()
+  })
 })

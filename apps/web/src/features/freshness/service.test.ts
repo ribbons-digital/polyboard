@@ -3,12 +3,25 @@ import { summarizeFreshness } from './service'
 
 describe('summarizeFreshness', () => {
   it('reports live when all core sources are live', () => {
+    const now = new Date('2026-03-30T12:00:30.000Z')
     expect(
       summarizeFreshness([
-        { sourceKey: 'gamma:markets', status: 'live' },
-        { sourceKey: 'data:wallets', status: 'live' },
-        { sourceKey: 'scores:markets', status: 'live' },
-      ]),
+        {
+          asOf: new Date('2026-03-30T12:00:00.000Z'),
+          sourceKey: 'gamma:markets',
+          status: 'live',
+        },
+        {
+          asOf: new Date('2026-03-30T12:00:10.000Z'),
+          sourceKey: 'data:wallets',
+          status: 'live',
+        },
+        {
+          asOf: new Date('2026-03-30T12:00:20.000Z'),
+          sourceKey: 'scores:markets',
+          status: 'live',
+        },
+      ], now),
     ).toEqual({
       label: 'live',
       message: 'Live Polymarket data is flowing through the worker.',
@@ -16,25 +29,79 @@ describe('summarizeFreshness', () => {
   })
 
   it('normalizes legacy fresh core rows to live', () => {
+    const now = new Date('2026-03-30T12:00:30.000Z')
     expect(
       summarizeFreshness([
-        { sourceKey: 'gamma:markets', status: 'fresh' },
-        { sourceKey: 'data:wallets', status: 'fresh' },
-        { sourceKey: 'scores:markets', status: 'fresh' },
-      ]),
+        {
+          asOf: new Date('2026-03-30T12:00:00.000Z'),
+          sourceKey: 'gamma:markets',
+          status: 'fresh',
+        },
+        {
+          asOf: new Date('2026-03-30T12:00:10.000Z'),
+          sourceKey: 'data:wallets',
+          status: 'fresh',
+        },
+        {
+          asOf: new Date('2026-03-30T12:00:20.000Z'),
+          sourceKey: 'scores:markets',
+          status: 'fresh',
+        },
+      ], now),
     ).toEqual({
       label: 'live',
       message: 'Live Polymarket data is flowing through the worker.',
     })
   })
 
+  it('marks stale core rows degraded even when their status is live', () => {
+    expect(
+      summarizeFreshness(
+        [
+          {
+            sourceKey: 'gamma:markets',
+            status: 'live',
+            asOf: new Date('2026-03-30T11:49:00.000Z'),
+          },
+          {
+            sourceKey: 'data:wallets',
+            status: 'live',
+            asOf: new Date('2026-03-30T11:59:00.000Z'),
+          },
+          {
+            sourceKey: 'scores:markets',
+            status: 'live',
+            asOf: new Date('2026-03-30T11:59:30.000Z'),
+          },
+        ],
+        new Date('2026-03-30T12:00:00.000Z'),
+      ),
+    ).toEqual({
+      label: 'degraded',
+      message: 'Some live sources are stale or unavailable.',
+    })
+  })
+
   it('reports fallback when a core source is fallback', () => {
+    const now = new Date('2026-03-30T12:00:30.000Z')
     expect(
       summarizeFreshness([
-        { sourceKey: 'gamma:markets', status: 'live' },
-        { sourceKey: 'data:wallets', status: 'fallback' },
-        { sourceKey: 'scores:markets', status: 'live' },
-      ]),
+        {
+          asOf: new Date('2026-03-30T12:00:00.000Z'),
+          sourceKey: 'gamma:markets',
+          status: 'live',
+        },
+        {
+          asOf: new Date('2026-03-30T12:00:10.000Z'),
+          sourceKey: 'data:wallets',
+          status: 'fallback',
+        },
+        {
+          asOf: new Date('2026-03-30T12:00:20.000Z'),
+          sourceKey: 'scores:markets',
+          status: 'live',
+        },
+      ], now),
     ).toEqual({
       label: 'fallback',
       message: 'Using fallback seed data because live bootstrap failed.',
@@ -42,13 +109,26 @@ describe('summarizeFreshness', () => {
   })
 
   it('ignores fallback rows outside the core sources', () => {
+    const now = new Date('2026-03-30T12:00:30.000Z')
     expect(
       summarizeFreshness([
-        { sourceKey: 'gamma:markets', status: 'live' },
-        { sourceKey: 'data:wallets', status: 'live' },
-        { sourceKey: 'scores:markets', status: 'live' },
+        {
+          asOf: new Date('2026-03-30T12:00:00.000Z'),
+          sourceKey: 'gamma:markets',
+          status: 'live',
+        },
+        {
+          asOf: new Date('2026-03-30T12:00:10.000Z'),
+          sourceKey: 'data:wallets',
+          status: 'live',
+        },
+        {
+          asOf: new Date('2026-03-30T12:00:20.000Z'),
+          sourceKey: 'scores:markets',
+          status: 'live',
+        },
         { sourceKey: 'worker:bootstrap', status: 'fallback' },
-      ]),
+      ], now),
     ).toEqual({
       label: 'live',
       message: 'Live Polymarket data is flowing through the worker.',

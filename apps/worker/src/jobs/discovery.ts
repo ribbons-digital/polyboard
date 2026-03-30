@@ -1,3 +1,4 @@
+import type { FreshnessStatus } from '@polyboard/db'
 import type { NormalizedMarket } from '@polyboard/polymarket'
 
 export interface MarketTag {
@@ -13,7 +14,8 @@ export interface DiscoveryMarketRepo {
 export interface DiscoveryFreshnessRepo {
   updateFreshness(
     sourceKey: string,
-    status: 'live' | 'degraded' | 'fallback',
+    status: FreshnessStatus,
+    completeness?: string,
   ): Promise<void>
 }
 

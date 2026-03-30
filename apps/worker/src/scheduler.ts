@@ -4,6 +4,13 @@ import {
 } from './jobs/analytics'
 import { runBackfillOnce, type BackfillDeps } from './jobs/backfill'
 import { runDiscoveryOnce, type DiscoveryDeps } from './jobs/discovery'
+import { freshnessCoreSourceKeys } from '@polyboard/db'
+
+const [
+  gammaMarketsSourceKey,
+  dataWalletsSourceKey,
+  scoresMarketsSourceKey,
+] = freshnessCoreSourceKeys
 
 interface LoggerLike {
   error: (...args: unknown[]) => void
@@ -127,32 +134,59 @@ export function startRuntimeRefreshScheduler(
   const discovery = deps.runDiscoveryOnce ?? runDiscoveryOnce
   const backfill = deps.runBackfillOnce ?? runBackfillOnce
   const recompute = deps.recomputeMarketScores ?? recomputeMarketScores
+  const markFreshnessFailed = async (
+    sourceKey: (typeof freshnessCoreSourceKeys)[number],
+  ) => {
+    await runtime.repos.freshnessRepo.updateFreshness(
+      sourceKey,
+      'degraded',
+      'degraded',
+    )
+  }
 
   return startRefreshScheduler({
     discoveryIntervalMs: runtime.env.discoveryIntervalMs,
     logger: runtime.logger,
     runDiscovery: async () => {
-      await discovery({
-        freshnessRepo: runtime.repos.freshnessRepo,
-        gammaClient: runtime.gammaClient,
-        marketRepo: runtime.repos.marketRepo,
-        minVolume: runtime.env.minMarketVolume,
-      })
+      try {
+        await discovery({
+          freshnessRepo: runtime.repos.freshnessRepo,
+          gammaClient: runtime.gammaClient,
+          marketRepo: runtime.repos.marketRepo,
+          minVolume: runtime.env.minMarketVolume,
+        })
+      } catch (error) {
+        await markFreshnessFailed(gammaMarketsSourceKey)
+        throw error
+      }
+
       await deps.refreshSocketSubscriptions?.()
     },
-    runScoreRefresh: async () =>
-      recompute({
-        freshnessRepo: runtime.repos.freshnessRepo,
-        marketRepo: runtime.repos.marketRepo,
-        settings: await runtime.settingsRepo.getSettings(),
-      }),
-    runWalletBackfill: async () =>
-      backfill({
-        dataClient: runtime.dataClient,
-        freshnessRepo: runtime.repos.freshnessRepo,
-        marketRepo: runtime.repos.marketRepo,
-        walletRepo: runtime.repos.walletRepo,
-      }),
+    runScoreRefresh: async () => {
+      try {
+        await recompute({
+          freshnessRepo: runtime.repos.freshnessRepo,
+          marketRepo: runtime.repos.marketRepo,
+          settings: await runtime.settingsRepo.getSettings(),
+        })
+      } catch (error) {
+        await markFreshnessFailed(scoresMarketsSourceKey)
+        throw error
+      }
+    },
+    runWalletBackfill: async () => {
+      try {
+        await backfill({
+          dataClient: runtime.dataClient,
+          freshnessRepo: runtime.repos.freshnessRepo,
+          marketRepo: runtime.repos.marketRepo,
+          walletRepo: runtime.repos.walletRepo,
+        })
+      } catch (error) {
+        await markFreshnessFailed(dataWalletsSourceKey)
+        throw error
+      }
+    },
     scoreIntervalMs: runtime.env.scoreRefreshIntervalMs,
     walletIntervalMs: runtime.env.walletRefreshIntervalMs,
   })

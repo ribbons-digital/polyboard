@@ -2,6 +2,7 @@ import {
   deriveWalletTags,
   summarizeWalletMetrics,
 } from '@polyboard/analytics'
+import type { FreshnessStatus } from '@polyboard/db'
 
 type RawRow = Record<string, unknown>
 
@@ -97,7 +98,8 @@ export interface BackfillDeps {
   freshnessRepo?: {
     updateFreshness(
       sourceKey: string,
-      status: 'live' | 'degraded' | 'fallback',
+      status: FreshnessStatus,
+      completeness?: string,
     ): Promise<void>
   }
   marketRepo: {

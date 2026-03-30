@@ -8,10 +8,68 @@ import {
 
 type DbClient = ReturnType<typeof createDb>
 
+export type FreshnessStatus = 'live' | 'degraded' | 'fallback'
+
+export const freshnessSourceKeys = [
+  'gamma:markets',
+  'data:wallets',
+  'scores:markets',
+  'ws:markets',
+] as const
+
+export type FreshnessSourceKey = (typeof freshnessSourceKeys)[number]
+
+export const freshnessCoreSourceKeys = [
+  'gamma:markets',
+  'data:wallets',
+  'scores:markets',
+] as const satisfies readonly FreshnessSourceKey[]
+
+const freshnessStaleAfterMs: Record<FreshnessSourceKey, number> = {
+  'gamma:markets': 600_000,
+  'data:wallets': 1_800_000,
+  'scores:markets': 600_000,
+  'ws:markets': 120_000,
+}
+
+export function normalizeFreshnessStatus(status: string): FreshnessStatus {
+  if (status === 'fresh') {
+    return 'live'
+  }
+
+  if (status === 'live' || status === 'degraded' || status === 'fallback') {
+    return status
+  }
+
+  return 'degraded'
+}
+
+export function getFreshnessStaleAfterMs(sourceKey: FreshnessSourceKey) {
+  return freshnessStaleAfterMs[sourceKey]
+}
+
+export function isFreshnessRowStale(
+  sourceKey: FreshnessSourceKey,
+  asOf: Date | string | null | undefined,
+  now = new Date(),
+) {
+  if (asOf === null || asOf === undefined) {
+    return true
+  }
+
+  const timestamp = new Date(asOf).getTime()
+
+  if (Number.isNaN(timestamp)) {
+    return true
+  }
+
+  return now.getTime() - timestamp > getFreshnessStaleAfterMs(sourceKey)
+}
+
 export async function updateFreshness(
   db: DbClient,
   sourceKey: string,
-  status: string,
+  status: FreshnessStatus,
   completeness = 'backfilled',
 ) {
   const now = new Date()

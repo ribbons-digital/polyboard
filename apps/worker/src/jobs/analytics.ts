@@ -1,4 +1,5 @@
 import { computeEdgeScore } from '@polyboard/analytics'
+import type { FreshnessStatus } from '@polyboard/db'
 
 export const defaultScoreWeights = {
   marketStructure: 0.4,
@@ -34,7 +35,8 @@ export interface RecomputeMarketScoresDeps {
   freshnessRepo?: {
     updateFreshness(
       sourceKey: string,
-      status: 'live' | 'degraded' | 'fallback',
+      status: FreshnessStatus,
+      completeness?: string,
     ): Promise<void>
   }
   settings: {

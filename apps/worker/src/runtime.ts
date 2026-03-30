@@ -3,6 +3,7 @@ import {
   ensureSettingsRow,
   getDashboardUsability,
   insertMarketSnapshot,
+  type FreshnessStatus,
   listMarketIdsByConditionIds,
   listSignalInputs,
   listTrackedTokens,
@@ -44,7 +45,7 @@ export function createRuntime(env: Record<string, string | undefined> = process.
         getDashboardUsability: () => getDashboardUsability(db),
         updateFreshness: (
           sourceKey: string,
-          status: string,
+          status: FreshnessStatus,
           completeness?: string,
         ) => updateFreshness(db, sourceKey, status, completeness),
       },

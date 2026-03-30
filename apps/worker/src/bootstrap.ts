@@ -4,13 +4,10 @@ import {
 } from './jobs/analytics'
 import { runBackfillOnce, type BackfillDeps } from './jobs/backfill'
 import { runDiscoveryOnce, type DiscoveryDeps } from './jobs/discovery'
-
-type FreshnessStatus = 'live' | 'degraded' | 'fallback'
-const CORE_FRESHNESS_SOURCE_KEYS = [
-  'gamma:markets',
-  'data:wallets',
-  'scores:markets',
-] as const
+import {
+  freshnessCoreSourceKeys,
+  type FreshnessStatus,
+} from '@polyboard/db'
 
 type DashboardUsability = {
   hasFreshnessRows: boolean
@@ -179,7 +176,7 @@ export async function runWorkerBootstrap(
     checkUsableData: runtime.repos.freshnessRepo.getDashboardUsability,
     markCoreFreshness: async (status) => {
       await Promise.all(
-        CORE_FRESHNESS_SOURCE_KEYS.map((sourceKey) =>
+        freshnessCoreSourceKeys.map((sourceKey) =>
           runtime.repos.freshnessRepo.updateFreshness(
             sourceKey,
             status,

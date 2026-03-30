@@ -1,6 +1,17 @@
-import { createDb, dataFreshness } from '@polyboard/db'
+import {
+  createDb,
+  dataFreshness,
+  freshnessCoreSourceKeys,
+  isFreshnessRowStale,
+  normalizeFreshnessStatus,
+  type FreshnessStatus,
+  type FreshnessSourceKey,
+} from '@polyboard/db'
 
-export type FreshnessLabel = 'live' | 'degraded' | 'fallback'
+export interface FreshnessSummary {
+  label: FreshnessStatus
+  message: string
+}
 
 export interface FreshnessRow {
   sourceKey: string
@@ -8,34 +19,35 @@ export interface FreshnessRow {
   asOf?: Date | string | null
 }
 
-export interface FreshnessSummary {
-  label: FreshnessLabel
-  message: string
-}
-
-const CORE_SOURCE_KEYS = [
-  'gamma:markets',
-  'data:wallets',
-  'scores:markets',
-] as const
-
-export function summarizeFreshness(rows: FreshnessRow[]): FreshnessSummary {
+export function summarizeFreshness(
+  rows: FreshnessRow[],
+  now = new Date(),
+): FreshnessSummary {
   const statusBySource = new Map(
-    rows.map((row) => [row.sourceKey, normalizeStatus(row.status)]),
+    rows.map((row) => [row.sourceKey, normalizeFreshnessStatus(row.status)]),
   )
-  const coreStatuses = CORE_SOURCE_KEYS.map((sourceKey) =>
-    statusBySource.get(sourceKey),
-  )
-  const allCoreSourcesLive = coreStatuses.every((status) => status === 'live')
+  const coreRows = freshnessCoreSourceKeys.map((sourceKey) => ({
+    asOf: rows.find((row) => row.sourceKey === sourceKey)?.asOf,
+    sourceKey,
+    status: statusBySource.get(sourceKey),
+  }))
 
-  if (coreStatuses.some((status) => status === 'fallback')) {
+  if (coreRows.some((row) => row.status === 'fallback')) {
     return {
       label: 'fallback',
       message: 'Using fallback seed data because live bootstrap failed.',
     }
   }
 
-  if (allCoreSourcesLive) {
+  const allCoreRowsLiveAndFresh = coreRows.every((row) => {
+    if (row.status !== 'live') {
+      return false
+    }
+
+    return !isFreshnessRowStale(row.sourceKey as FreshnessSourceKey, row.asOf, now)
+  })
+
+  if (allCoreRowsLiveAndFresh) {
     return {
       label: 'live',
       message: 'Live Polymarket data is flowing through the worker.',
@@ -46,10 +58,6 @@ export function summarizeFreshness(rows: FreshnessRow[]): FreshnessSummary {
     label: 'degraded',
     message: 'Some live sources are stale or unavailable.',
   }
-}
-
-function normalizeStatus(status: string) {
-  return status === 'fresh' ? 'live' : status
 }
 
 export async function getFreshnessSummary() {
