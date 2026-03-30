@@ -7,6 +7,8 @@ export default defineConfig({
     port: 3000,
   },
   test: {
+    exclude: ['tests/e2e/**'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
   },

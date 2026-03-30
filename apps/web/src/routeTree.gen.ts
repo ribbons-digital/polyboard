@@ -15,6 +15,7 @@ import { Route as WalletsIndexRouteImport } from './routes/wallets/index'
 import { Route as MarketsIndexRouteImport } from './routes/markets/index'
 import { Route as WalletsWalletIdRouteImport } from './routes/wallets/$walletId'
 import { Route as MarketsMarketIdRouteImport } from './routes/markets/$marketId'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -46,10 +47,16 @@ const MarketsMarketIdRoute = MarketsMarketIdRouteImport.update({
   path: '/markets/$marketId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
+  '/api/health': typeof ApiHealthRoute
   '/markets/$marketId': typeof MarketsMarketIdRoute
   '/wallets/$walletId': typeof WalletsWalletIdRoute
   '/markets/': typeof MarketsIndexRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
+  '/api/health': typeof ApiHealthRoute
   '/markets/$marketId': typeof MarketsMarketIdRoute
   '/wallets/$walletId': typeof WalletsWalletIdRoute
   '/markets': typeof MarketsIndexRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
+  '/api/health': typeof ApiHealthRoute
   '/markets/$marketId': typeof MarketsMarketIdRoute
   '/wallets/$walletId': typeof WalletsWalletIdRoute
   '/markets/': typeof MarketsIndexRoute
@@ -77,6 +86,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/settings'
+    | '/api/health'
     | '/markets/$marketId'
     | '/wallets/$walletId'
     | '/markets/'
@@ -85,6 +95,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/settings'
+    | '/api/health'
     | '/markets/$marketId'
     | '/wallets/$walletId'
     | '/markets'
@@ -93,6 +104,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/settings'
+    | '/api/health'
     | '/markets/$marketId'
     | '/wallets/$walletId'
     | '/markets/'
@@ -102,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SettingsRoute: typeof SettingsRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   MarketsMarketIdRoute: typeof MarketsMarketIdRoute
   WalletsWalletIdRoute: typeof WalletsWalletIdRoute
   MarketsIndexRoute: typeof MarketsIndexRoute
@@ -152,12 +165,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MarketsMarketIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SettingsRoute: SettingsRoute,
+  ApiHealthRoute: ApiHealthRoute,
   MarketsMarketIdRoute: MarketsMarketIdRoute,
   WalletsWalletIdRoute: WalletsWalletIdRoute,
   MarketsIndexRoute: MarketsIndexRoute,

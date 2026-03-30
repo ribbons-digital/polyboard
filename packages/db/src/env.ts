@@ -1,4 +1,36 @@
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+import { config } from 'dotenv'
 import { z } from 'zod'
+
+let loadedDotenv = false
+
+function ensureDatabaseEnvLoaded() {
+  if (loadedDotenv) {
+    return
+  }
+
+  let currentDir = process.cwd()
+
+  while (true) {
+    const candidate = path.join(currentDir, '.env')
+
+    if (existsSync(candidate)) {
+      config({ path: candidate })
+      break
+    }
+
+    const parentDir = path.dirname(currentDir)
+
+    if (parentDir === currentDir) {
+      break
+    }
+
+    currentDir = parentDir
+  }
+
+  loadedDotenv = true
+}
 
 const DatabaseUrlSchema = z
   .string({
@@ -30,7 +62,12 @@ const EnvSchema = z.object({
 })
 
 export function parseDatabaseEnv(input: Record<string, string | undefined>) {
-  const parsed = EnvSchema.parse(input)
+  ensureDatabaseEnvLoaded()
+
+  const parsed = EnvSchema.parse({
+    ...process.env,
+    ...input,
+  })
 
   return {
     databaseUrl: parsed.DATABASE_URL,
