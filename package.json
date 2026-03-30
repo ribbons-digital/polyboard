@@ -7,13 +7,16 @@
     "build": "pnpm -r build",
     "test": "node --test tests/workspace/bootstrap.test.mjs && if find apps packages -mindepth 2 -name package.json -print -quit | grep -q .; then pnpm -r --if-present test; fi",
     "lint": "pnpm -r lint",
-    "seed:dev": "tsx scripts/seed-dev.ts",
+    "seed:dev": "pnpm --filter @polyboard/db build && node --import tsx scripts/seed-dev.ts",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres"
   },
   "devDependencies": {
+    "@polyboard/db": "workspace:*",
     "@types/node": "^24.3.0",
+    "drizzle-orm": "^0.44.5",
+    "drizzle-kit": "^0.31.4",
     "tsx": "^4.20.5",
     "typescript": "^5.8.3",
     "vitest": "^3.2.4"
