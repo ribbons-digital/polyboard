@@ -50,6 +50,10 @@ body {
   text-decoration: none;
 }
 
+.nav-label {
+  color: var(--muted);
+}
+
 .page,
 .hero-card,
 .surface {

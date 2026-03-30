@@ -39,9 +39,9 @@ function RootComponent() {
             </div>
             <nav className="nav">
               <Link to="/">Overview</Link>
-              <Link to="/markets">Markets</Link>
-              <Link to="/wallets">Wallets</Link>
-              <Link to="/settings">Settings</Link>
+              <span className="nav-label">Markets</span>
+              <span className="nav-label">Wallets</span>
+              <span className="nav-label">Settings</span>
             </nav>
           </header>
           <main className="page">
