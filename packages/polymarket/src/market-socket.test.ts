@@ -41,4 +41,31 @@ describe('parseMarketSocketMessages', () => {
       }),
     ).toEqual([])
   })
+
+  it('derives top-of-book prices from book snapshots', () => {
+    expect(
+      parseMarketSocketMessages({
+        event_type: 'book',
+        asset_id: 'token_yes',
+        timestamp: '1710000000000',
+        bids: [
+          { price: '0.59', size: '120' },
+          { price: '0.58', size: '80' },
+        ],
+        asks: [
+          { price: '0.61', size: '100' },
+          { price: '0.62', size: '70' },
+        ],
+      }),
+    ).toEqual([
+      {
+        assetId: 'token_yes',
+        bestBid: 0.59,
+        bestAsk: 0.61,
+        price: undefined,
+        side: undefined,
+        timestamp: 1710000000000,
+      },
+    ])
+  })
 })

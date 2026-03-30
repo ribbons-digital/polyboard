@@ -134,6 +134,30 @@ export function parseMarketSocketMessages(input: unknown): MarketSocketMessage[]
     })
   }
 
+  if ('event_type' in input && input.event_type === 'book') {
+    const assetId = getAssetId(input)
+
+    if (assetId === undefined) {
+      return []
+    }
+
+    const bestBid = extractTopBookPrice(
+      'bids' in input && Array.isArray(input.bids) ? input.bids : undefined,
+    )
+    const bestAsk = extractTopBookPrice(
+      'asks' in input && Array.isArray(input.asks) ? input.asks : undefined,
+    )
+
+    return [
+      normalizeSocketMessage({
+        asset_id: assetId,
+        best_bid: bestBid,
+        best_ask: bestAsk,
+        timestamp: 'timestamp' in input ? input.timestamp : undefined,
+      }),
+    ]
+  }
+
   if ('asset_id' in input || 'assetId' in input) {
     try {
       return [normalizeSocketMessage(input as Record<string, unknown>)]
@@ -143,4 +167,35 @@ export function parseMarketSocketMessages(input: unknown): MarketSocketMessage[]
   }
 
   return []
+}
+
+function extractTopBookPrice(levels: unknown[] | undefined): number | undefined {
+  const firstLevel = levels?.[0]
+
+  if (typeof firstLevel !== 'object' || firstLevel === null) {
+    return undefined
+  }
+
+  if (!('price' in firstLevel)) {
+    return undefined
+  }
+
+  const price =
+    typeof firstLevel.price === 'number'
+      ? firstLevel.price
+      : Number(firstLevel.price)
+
+  return Number.isFinite(price) ? price : undefined
+}
+
+function getAssetId(input: Record<string, unknown>): unknown {
+  if ('asset_id' in input) {
+    return input.asset_id
+  }
+
+  if ('assetId' in input) {
+    return input.assetId
+  }
+
+  return undefined
 }
