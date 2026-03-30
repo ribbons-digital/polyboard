@@ -41,7 +41,7 @@ function RootComponent() {
             </div>
             <nav className="nav">
               <Link to="/">Overview</Link>
-              <span className="nav-label">Markets</span>
+              <Link to={"/markets" as never}>Markets</Link>
               <span className="nav-label">Wallets</span>
               <span className="nav-label">Settings</span>
             </nav>

@@ -2,10 +2,11 @@ import {
   createDb,
   getMarketDetailData,
   markets,
+  marketSnapshots,
   marketScores,
   marketTags,
 } from '@polyboard/db'
-import { and, desc, eq, gte, ilike, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, ilike, sql } from 'drizzle-orm'
 
 export interface MarketFilterInput {
   minEdge?: number
@@ -24,6 +25,13 @@ function toRecord(value: unknown): Record<string, {}> {
       entry ?? {},
     ]),
   ) as Record<string, {}>
+}
+
+function formatTimeLabel(timestamp: Date) {
+  return timestamp.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 export function applyMarketFilters<
@@ -96,7 +104,33 @@ export async function listMarketLeaderboard(filters: MarketFilterInput) {
 
 export async function getMarketDetail(marketId: string) {
   const db = createDb()
+  const [score] = await db
+    .select({
+      marketStructure: sql<number>`(${marketScores.marketStructureScore})::float`,
+      smartMoney: sql<number>`(${marketScores.smartMoneyScore})::float`,
+      timing: sql<number>`(${marketScores.timingScore})::float`,
+    })
+    .from(marketScores)
+    .where(eq(marketScores.marketId, marketId))
+  const snapshots = await db
+    .select({
+      capturedAt: marketSnapshots.capturedAt,
+      price: sql<number>`coalesce((${marketSnapshots.lastPrice})::float, 0)`,
+    })
+    .from(marketSnapshots)
+    .where(eq(marketSnapshots.marketId, marketId))
+    .orderBy(asc(marketSnapshots.capturedAt))
   const detail = await getMarketDetailData(db, marketId)
+  const priceHistory = snapshots
+    .filter((snapshot) => snapshot.price > 0)
+    .map((snapshot) => ({
+      label: formatTimeLabel(snapshot.capturedAt),
+      price: snapshot.price,
+    }))
+  const fallbackHistory = detail.recentTrades.slice(0, 8).reverse().map((trade) => ({
+    label: formatTimeLabel(trade.tradedAt),
+    price: Number(trade.price),
+  }))
 
   return {
     ...detail,
@@ -106,5 +140,13 @@ export async function getMarketDetail(marketId: string) {
           metadata: toRecord(detail.market.metadata),
         }
       : detail.market,
+    priceHistory: priceHistory.length > 0 ? priceHistory : fallbackHistory,
+    scoreBreakdown: score
+      ? [
+          { label: 'market structure', value: score.marketStructure },
+          { label: 'smart money', value: score.smartMoney },
+          { label: 'timing', value: score.timing },
+        ]
+      : [],
   }
 }
