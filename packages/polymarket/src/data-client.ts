@@ -25,15 +25,25 @@ export class DataClient {
     )
   }
 
-  getPositions(user: string) {
+  getPositions(
+    query: string | Record<string, string | number | boolean | undefined>,
+  ) {
     return fetchJson<Array<Record<string, unknown>>>(
-      `${this.baseUrl}${withQuery('/positions', { user })}`,
+      `${this.baseUrl}${withQuery(
+        '/positions',
+        typeof query === 'string' ? { user: query } : query,
+      )}`,
     )
   }
 
-  getClosedPositions(user: string) {
+  getClosedPositions(
+    query: string | Record<string, string | number | boolean | undefined>,
+  ) {
     return fetchJson<Array<Record<string, unknown>>>(
-      `${this.baseUrl}${withQuery('/closed-positions', { user })}`,
+      `${this.baseUrl}${withQuery(
+        '/closed-positions',
+        typeof query === 'string' ? { user: query } : query,
+      )}`,
     )
   }
 

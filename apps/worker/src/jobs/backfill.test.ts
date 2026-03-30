@@ -47,6 +47,112 @@ describe('runBackfillOnce', () => {
     ])
   })
 
+  it('paginates positions/trades and disables taker-only trade filtering', async () => {
+    const getPositions = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Array.from({ length: 500 }, () => ({
+          asset: 'token-1',
+          avgPrice: 0.45,
+          conditionId: '0xcondition',
+          currentValue: 8,
+          outcome: 'Yes',
+          realizedPnl: 1,
+          size: 10,
+          totalPnl: 2,
+        })),
+      )
+      .mockResolvedValueOnce([])
+    const getClosedPositions = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Array.from({ length: 50 }, () => ({
+          asset: 'token-1',
+          avgPrice: 0.45,
+          conditionId: '0xcondition',
+          eventSlug: 'event-a',
+          outcome: 'Yes',
+          realizedPnl: 7,
+          timestamp: 1_700_000_000,
+          totalBought: 10,
+        })),
+      )
+      .mockResolvedValueOnce([])
+    const getTrades = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Array.from({ length: 500 }, () => ({
+          asset: 'token-1',
+          conditionId: '0xcondition',
+          eventSlug: 'event-a',
+          price: 0.55,
+          proxyWallet: '0xwallet',
+          side: 'BUY',
+          size: 10,
+          timestamp: 1_700_000_000,
+          transactionHash: crypto.randomUUID(),
+        })),
+      )
+      .mockResolvedValueOnce([])
+
+    await runBackfillOnce({
+      dataClient: {
+        getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
+        getPositions,
+        getClosedPositions,
+        getTrades,
+        getHolders: async () => [],
+        getValue: async () => [{ value: 12 }],
+      },
+      marketRepo: {
+        listMarketIdsByConditionIds: async () =>
+          new Map([['0xcondition', 'market-1']]),
+        replaceMarketHolders: vi.fn(async () => undefined),
+      },
+      walletRepo: {
+        replaceClosedPositions: vi.fn(async () => undefined),
+        replaceOpenPositions: vi.fn(async () => undefined),
+        replaceTrades: vi.fn(async () => undefined),
+        replaceWalletEventStats: vi.fn(async () => undefined),
+        upsertWalletProfiles: vi.fn(async () => undefined),
+        upsertWalletScore: vi.fn(async () => undefined),
+      },
+    })
+
+    expect(getPositions).toHaveBeenNthCalledWith(1, {
+      limit: 500,
+      offset: 0,
+      user: '0xwallet',
+    })
+    expect(getPositions).toHaveBeenNthCalledWith(2, {
+      limit: 500,
+      offset: 500,
+      user: '0xwallet',
+    })
+    expect(getClosedPositions).toHaveBeenNthCalledWith(1, {
+      limit: 50,
+      offset: 0,
+      user: '0xwallet',
+    })
+    expect(getClosedPositions).toHaveBeenNthCalledWith(2, {
+      limit: 50,
+      offset: 50,
+      user: '0xwallet',
+    })
+    expect(getTrades).toHaveBeenNthCalledWith(1, {
+      limit: 500,
+      offset: 0,
+      takerOnly: false,
+      user: '0xwallet',
+    })
+    expect(getTrades).toHaveBeenNthCalledWith(2, {
+      limit: 500,
+      offset: 500,
+      takerOnly: false,
+      user: '0xwallet',
+    })
+  })
+
   it('persists nested market holder responses for mapped condition ids', async () => {
     const replaceMarketHolders = vi.fn(async () => undefined)
 

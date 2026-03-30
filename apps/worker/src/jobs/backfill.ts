@@ -5,13 +5,21 @@ import {
 
 type RawRow = Record<string, unknown>
 
+const OPEN_POSITIONS_PAGE_LIMIT = 500
+const CLOSED_POSITIONS_PAGE_LIMIT = 50
+const TRADES_PAGE_LIMIT = 500
+
 export interface BackfillDeps {
   dataClient: {
     getLeaderboard: (
       query?: Record<string, string | number | boolean | undefined>,
     ) => Promise<RawRow[]>
-    getPositions: (user: string) => Promise<RawRow[]>
-    getClosedPositions: (user: string) => Promise<RawRow[]>
+    getPositions: (
+      query: Record<string, string | number | boolean | undefined>,
+    ) => Promise<RawRow[]>
+    getClosedPositions: (
+      query: Record<string, string | number | boolean | undefined>,
+    ) => Promise<RawRow[]>
     getTrades: (
       query?: Record<string, string | number | boolean | undefined>,
     ) => Promise<RawRow[]>
@@ -128,9 +136,19 @@ export async function runBackfillOnce(deps: BackfillDeps) {
 
   for (const wallet of walletProfiles.slice(0, 50)) {
     const [openRows, closedRows, tradeRows, valueRows] = await Promise.all([
-      deps.dataClient.getPositions(wallet.address),
-      deps.dataClient.getClosedPositions(wallet.address),
-      deps.dataClient.getTrades({ user: wallet.address }),
+      fetchPagedRows((query) => deps.dataClient.getPositions(query), {
+        limit: OPEN_POSITIONS_PAGE_LIMIT,
+        user: wallet.address,
+      }),
+      fetchPagedRows((query) => deps.dataClient.getClosedPositions(query), {
+        limit: CLOSED_POSITIONS_PAGE_LIMIT,
+        user: wallet.address,
+      }),
+      fetchPagedRows((query) => deps.dataClient.getTrades(query), {
+        limit: TRADES_PAGE_LIMIT,
+        takerOnly: false,
+        user: wallet.address,
+      }),
       deps.dataClient.getValue(wallet.address),
     ])
     const trackedConditionIds = collectConditionIds(
@@ -206,6 +224,32 @@ export async function runBackfillOnce(deps: BackfillDeps) {
         normalizeHolderRows(holders),
       )
     }
+  }
+}
+
+async function fetchPagedRows(
+  fetchPage: (
+    query: Record<string, string | number | boolean | undefined>,
+  ) => Promise<RawRow[]>,
+  baseQuery: Record<string, string | number | boolean | undefined>,
+) {
+  const limit = Number(baseQuery.limit ?? 100)
+  let offset = 0
+  const rows: RawRow[] = []
+
+  for (;;) {
+    const page = await fetchPage({
+      ...baseQuery,
+      offset,
+    })
+
+    rows.push(...page)
+
+    if (page.length < limit) {
+      return rows
+    }
+
+    offset += limit
   }
 }
 
