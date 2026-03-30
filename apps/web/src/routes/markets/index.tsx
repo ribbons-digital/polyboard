@@ -1,20 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { MarketsTable } from '../../components/markets/markets-table'
-import { getMarketLeaderboard } from '../../features/markets/server'
-import type { listMarketLeaderboard } from '../../features/markets/service'
+import { DataStatus } from '../../components/status/data-status'
+import { loadMarketRouteData } from '../../features/route-loaders'
 
 export const Route = createFileRoute('/markets/' as never)({
-  loader: () => getMarketLeaderboard({ data: { minEdge: 0.2 } }),
+  loader: () => loadMarketRouteData(),
   component: MarketsPage,
 })
 
 function MarketsPage() {
-  const rows = (Route.useLoaderData() ?? []) as Awaited<
-    ReturnType<typeof listMarketLeaderboard>
+  const data = Route.useLoaderData() as Awaited<
+    ReturnType<typeof loadMarketRouteData>
   >
 
   return (
     <section className="stack">
+      <DataStatus summary={data.freshness} />
       <div className="surface hero-panel">
         <p className="eyebrow">Markets</p>
         <h2>Composite Edge Leaderboard</h2>
@@ -24,7 +25,7 @@ function MarketsPage() {
         </p>
       </div>
       <MarketsTable
-        rows={rows.map((row) => ({
+        rows={data.rows.map((row) => ({
           ...row,
           freshness: 'fresh' as const,
         }))}

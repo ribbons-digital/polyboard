@@ -1,20 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { WalletsTable } from '../../components/wallets/wallets-table'
-import { getWalletLeaderboard } from '../../features/wallets/server'
-import type { listWalletLeaderboard } from '../../features/wallets/service'
+import { DataStatus } from '../../components/status/data-status'
+import { loadWalletRouteData } from '../../features/route-loaders'
 
 export const Route = createFileRoute('/wallets/' as never)({
-  loader: () => getWalletLeaderboard(),
+  loader: () => loadWalletRouteData(),
   component: WalletsPage,
 })
 
 function WalletsPage() {
-  const rows = (Route.useLoaderData() ?? []) as Awaited<
-    ReturnType<typeof listWalletLeaderboard>
+  const data = Route.useLoaderData() as Awaited<
+    ReturnType<typeof loadWalletRouteData>
   >
 
   return (
     <section className="stack">
+      <DataStatus summary={data.freshness} />
       <div className="surface hero-panel">
         <p className="eyebrow">Wallets</p>
         <h2>Historical Performance Leaderboard</h2>
@@ -23,7 +24,7 @@ function WalletsPage() {
           win-rate profiles in one operator view.
         </p>
       </div>
-      <WalletsTable rows={rows} />
+      <WalletsTable rows={data.rows} />
     </section>
   )
 }
