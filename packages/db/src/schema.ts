@@ -60,6 +60,7 @@ export const tokens = pgTable('tokens', {
     .references(() => markets.id, { onDelete: 'cascade' }),
   outcome: text('outcome').notNull(),
   outcomeIndex: integer('outcome_index').notNull(),
+  active: boolean('active').notNull().default(true),
 })
 
 export const wallets = pgTable('wallets', {

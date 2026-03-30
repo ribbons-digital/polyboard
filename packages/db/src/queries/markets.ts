@@ -46,6 +46,21 @@ export function getRemovedTokenIds(
   return existingTokenIds.filter((tokenId) => !nextTokenIdSet.has(tokenId))
 }
 
+export interface TrackedTokenRow {
+  marketId: string
+  tokenId: string
+  marketActive: boolean
+  tokenActive: boolean
+}
+
+export function filterTrackedTokens(rows: TrackedTokenRow[]) {
+  return rows.flatMap((row) =>
+    row.marketActive && row.tokenActive
+      ? [{ marketId: row.marketId, tokenId: row.tokenId }]
+      : [],
+  )
+}
+
 export async function upsertMarkets(db: DbClient, rows: UpsertMarketInput[]) {
   const now = new Date()
 
@@ -110,7 +125,10 @@ export async function upsertMarkets(db: DbClient, rows: UpsertMarketInput[]) {
 
       if (removedTokenIds.length > 0) {
         await tx
-          .delete(tokens)
+          .update(tokens)
+          .set({
+            active: false,
+          })
           .where(
             and(
               eq(tokens.marketId, row.id),
@@ -123,6 +141,7 @@ export async function upsertMarkets(db: DbClient, rows: UpsertMarketInput[]) {
         await tx
           .insert(tokens)
           .values({
+            active: true,
             id: token.id,
             marketId: row.id,
             outcome: token.outcome,
@@ -131,6 +150,7 @@ export async function upsertMarkets(db: DbClient, rows: UpsertMarketInput[]) {
           .onConflictDoUpdate({
             target: tokens.id,
             set: {
+              active: true,
               marketId: row.id,
               outcome: token.outcome,
               outcomeIndex: token.outcomeIndex,
@@ -174,14 +194,18 @@ export async function replaceTags(
 }
 
 export async function listTrackedTokens(db: DbClient) {
-  return db
+  const rows = await db
     .select({
+      marketActive: markets.active,
       marketId: markets.id,
+      tokenActive: tokens.active,
       tokenId: tokens.id,
     })
     .from(markets)
     .innerJoin(tokens, eq(tokens.marketId, markets.id))
-    .where(eq(markets.active, true))
+    .where(and(eq(markets.active, true), eq(tokens.active, true)))
+
+  return filterTrackedTokens(rows)
 }
 
 export interface InsertMarketSnapshotInput {
