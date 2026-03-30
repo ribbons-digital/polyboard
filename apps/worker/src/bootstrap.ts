@@ -5,6 +5,13 @@ import {
 import { runBackfillOnce, type BackfillDeps } from './jobs/backfill'
 import { runDiscoveryOnce, type DiscoveryDeps } from './jobs/discovery'
 
+type FreshnessStatus = 'live' | 'degraded' | 'fallback'
+const CORE_FRESHNESS_SOURCE_KEYS = [
+  'gamma:markets',
+  'data:wallets',
+  'scores:markets',
+] as const
+
 type DashboardUsability = {
   hasFreshnessRows: boolean
   hasMarketScores: boolean
@@ -22,7 +29,7 @@ export interface WorkerBootstrapRuntime {
       getDashboardUsability: () => Promise<DashboardUsability>
       updateFreshness: (
         sourceKey: string,
-        status: string,
+        status: FreshnessStatus,
         completeness?: string,
       ) => Promise<void>
     }
@@ -75,11 +82,13 @@ export function createLiveBootstrapRunner(
 
     await runBackfill({
       dataClient: runtime.dataClient,
+      freshnessRepo: runtime.repos.freshnessRepo,
       marketRepo: runtime.repos.marketRepo,
       walletRepo: runtime.repos.walletRepo,
     })
 
     await recompute({
+      freshnessRepo: runtime.repos.freshnessRepo,
       marketRepo: runtime.repos.marketRepo,
       settings: await runtime.settingsRepo.getSettings(),
     })
@@ -94,7 +103,8 @@ async function handleLiveBootstrapFailure(
   deps: {
     checkUsableData: () => Promise<DashboardUsability>
     runFallbackSeed: () => Promise<void>
-    markFreshness: (status: 'live' | 'fallback' | 'degraded') => Promise<void>
+    markCoreFreshness: (status: Exclude<FreshnessStatus, 'live'>) => Promise<void>
+    markFreshness: (status: FreshnessStatus) => Promise<void>
   },
   bootstrapError: unknown,
 ) {
@@ -112,10 +122,12 @@ async function handleLiveBootstrapFailure(
   try {
     if (shouldRunFallbackSeed({ bootstrapFailed: true, ...state })) {
       await deps.runFallbackSeed()
+      await deps.markCoreFreshness('fallback')
       await deps.markFreshness('fallback')
       return 'fallback'
     }
 
+    await deps.markCoreFreshness('degraded')
     await deps.markFreshness('degraded')
     return 'degraded'
   } catch (decisionError) {
@@ -130,7 +142,8 @@ export async function bootstrapWorkerData(deps: {
   runLiveBootstrap: () => Promise<void>
   checkUsableData: () => Promise<DashboardUsability>
   runFallbackSeed: () => Promise<void>
-  markFreshness: (status: 'live' | 'fallback' | 'degraded') => Promise<void>
+  markCoreFreshness: (status: Exclude<FreshnessStatus, 'live'>) => Promise<void>
+  markFreshness: (status: FreshnessStatus) => Promise<void>
 }) {
   try {
     await deps.runLiveBootstrap()
@@ -164,11 +177,22 @@ export async function runWorkerBootstrap(
 
   return bootstrapWorkerData({
     checkUsableData: runtime.repos.freshnessRepo.getDashboardUsability,
+    markCoreFreshness: async (status) => {
+      await Promise.all(
+        CORE_FRESHNESS_SOURCE_KEYS.map((sourceKey) =>
+          runtime.repos.freshnessRepo.updateFreshness(
+            sourceKey,
+            status,
+            status,
+          ),
+        ),
+      )
+    },
     markFreshness: (status) =>
       runtime.repos.freshnessRepo.updateFreshness(
         'worker:bootstrap',
         status,
-        status === 'live' ? 'live' : 'fallback',
+        status === 'live' ? 'live' : status,
       ),
     runFallbackSeed: runtime.seedFallback,
     runLiveBootstrap,

@@ -142,12 +142,14 @@ export function startRuntimeRefreshScheduler(
     },
     runScoreRefresh: async () =>
       recompute({
+        freshnessRepo: runtime.repos.freshnessRepo,
         marketRepo: runtime.repos.marketRepo,
         settings: await runtime.settingsRepo.getSettings(),
       }),
     runWalletBackfill: async () =>
       backfill({
         dataClient: runtime.dataClient,
+        freshnessRepo: runtime.repos.freshnessRepo,
         marketRepo: runtime.repos.marketRepo,
         walletRepo: runtime.repos.walletRepo,
       }),

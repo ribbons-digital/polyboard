@@ -15,6 +15,19 @@ describe('summarizeFreshness', () => {
     })
   })
 
+  it('normalizes legacy fresh core rows to live', () => {
+    expect(
+      summarizeFreshness([
+        { sourceKey: 'gamma:markets', status: 'fresh' },
+        { sourceKey: 'data:wallets', status: 'fresh' },
+        { sourceKey: 'scores:markets', status: 'fresh' },
+      ]),
+    ).toEqual({
+      label: 'live',
+      message: 'Live Polymarket data is flowing through the worker.',
+    })
+  })
+
   it('reports fallback when a core source is fallback', () => {
     expect(
       summarizeFreshness([

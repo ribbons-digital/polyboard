@@ -2,6 +2,38 @@ import { describe, expect, it, vi } from 'vitest'
 import { runBackfillOnce } from './backfill'
 
 describe('runBackfillOnce', () => {
+  it('marks wallet data live after a successful backfill run', async () => {
+    const updateFreshness = vi.fn(async () => undefined)
+
+    await runBackfillOnce({
+      dataClient: {
+        getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
+        getPositions: async () => [],
+        getClosedPositions: async () => [],
+        getTrades: async () => [],
+        getHolders: async () => [],
+        getValue: async () => [{ value: 12 }],
+      },
+      freshnessRepo: {
+        updateFreshness,
+      },
+      marketRepo: {
+        listMarketIdsByConditionIds: async () => new Map(),
+        replaceMarketHolders: vi.fn(async () => undefined),
+      },
+      walletRepo: {
+        replaceClosedPositions: vi.fn(async () => undefined),
+        replaceOpenPositions: vi.fn(async () => undefined),
+        replaceTrades: vi.fn(async () => undefined),
+        replaceWalletEventStats: vi.fn(async () => undefined),
+        upsertWalletProfiles: vi.fn(async () => undefined),
+        upsertWalletScore: vi.fn(async () => undefined),
+      },
+    })
+
+    expect(updateFreshness).toHaveBeenCalledWith('data:wallets', 'live')
+  })
+
   it('requests the top 50 leaderboard rows and maps documented profile fields', async () => {
     const getLeaderboard = vi.fn(async () => [
       {

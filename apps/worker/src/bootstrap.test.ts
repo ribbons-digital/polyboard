@@ -106,11 +106,13 @@ describe('bootstrapWorkerData', () => {
     })
     expect(runBackfillOnce).toHaveBeenCalledWith({
       dataClient: runtime.dataClient,
+      freshnessRepo: runtime.repos.freshnessRepo,
       marketRepo: runtime.repos.marketRepo,
       walletRepo: runtime.repos.walletRepo,
     })
     expect(runtime.settingsRepo.getSettings).toHaveBeenCalledTimes(1)
     expect(recomputeMarketScores).toHaveBeenCalledWith({
+      freshnessRepo: runtime.repos.freshnessRepo,
       marketRepo: runtime.repos.marketRepo,
       settings: {
         scoreWeights: { marketStructure: 0.35, smartMoney: 0.45, timing: 0.2 },
@@ -229,19 +231,34 @@ describe('bootstrapWorkerData', () => {
               upsertWalletProfiles: vi.fn(),
               upsertWalletScore: vi.fn(),
             },
-          },
-          seedFallback,
         },
-        {
-          runLiveBootstrap: vi.fn(async () => {
-            throw new Error('gamma unavailable')
-          }),
-        },
-      ),
+        seedFallback,
+      },
+      {
+        runLiveBootstrap: vi.fn(async () => {
+          throw new Error('gamma unavailable')
+        }),
+      },
+    ),
     ).resolves.toBe('fallback')
 
     expect(getDashboardUsability).toHaveBeenCalledTimes(1)
     expect(seedFallback).toHaveBeenCalledTimes(1)
+    expect(updateFreshness).toHaveBeenCalledWith(
+      'gamma:markets',
+      'fallback',
+      'fallback',
+    )
+    expect(updateFreshness).toHaveBeenCalledWith(
+      'data:wallets',
+      'fallback',
+      'fallback',
+    )
+    expect(updateFreshness).toHaveBeenCalledWith(
+      'scores:markets',
+      'fallback',
+      'fallback',
+    )
     expect(updateFreshness).toHaveBeenCalledWith(
       'worker:bootstrap',
       'fallback',
@@ -289,6 +306,7 @@ describe('bootstrapWorkerData', () => {
         checkUsableData: async () => {
           throw new Error('should not be called')
         },
+        markCoreFreshness: vi.fn(async () => undefined),
         markFreshness,
         runFallbackSeed: seedFallback,
         runLiveBootstrap,
@@ -303,6 +321,7 @@ describe('bootstrapWorkerData', () => {
 
   it('returns fallback, runs seed, and marks fallback when live bootstrap fails and data is unusable', async () => {
     const markFreshness = vi.fn(async () => undefined)
+    const markCoreFreshness = vi.fn(async () => undefined)
     const seedFallback = vi.fn(async () => undefined)
 
     await expect(
@@ -312,6 +331,7 @@ describe('bootstrapWorkerData', () => {
           hasMarketScores: false,
           hasWalletScores: false,
         }),
+        markCoreFreshness,
         markFreshness,
         runFallbackSeed: seedFallback,
         runLiveBootstrap: vi.fn(async () => {
@@ -322,11 +342,14 @@ describe('bootstrapWorkerData', () => {
 
     expect(markFreshness).toHaveBeenCalledTimes(1)
     expect(markFreshness).toHaveBeenCalledWith('fallback')
+    expect(markCoreFreshness).toHaveBeenCalledTimes(1)
+    expect(markCoreFreshness).toHaveBeenCalledWith('fallback')
     expect(seedFallback).toHaveBeenCalledTimes(1)
   })
 
   it('returns degraded and marks degraded when live bootstrap fails and data is already usable', async () => {
     const markFreshness = vi.fn(async () => undefined)
+    const markCoreFreshness = vi.fn(async () => undefined)
     const seedFallback = vi.fn(async () => undefined)
 
     await expect(
@@ -336,6 +359,7 @@ describe('bootstrapWorkerData', () => {
           hasMarketScores: true,
           hasWalletScores: true,
         }),
+        markCoreFreshness,
         markFreshness,
         runFallbackSeed: seedFallback,
         runLiveBootstrap: vi.fn(async () => {
@@ -346,12 +370,15 @@ describe('bootstrapWorkerData', () => {
 
     expect(markFreshness).toHaveBeenCalledTimes(1)
     expect(markFreshness).toHaveBeenCalledWith('degraded')
+    expect(markCoreFreshness).toHaveBeenCalledTimes(1)
+    expect(markCoreFreshness).toHaveBeenCalledWith('degraded')
     expect(seedFallback).not.toHaveBeenCalled()
   })
 
   it('preserves the live bootstrap error when checkUsableData fails during fallback decision making', async () => {
     const bootstrapError = new Error('gamma unavailable')
     const decisionError = new Error('freshness lookup failed')
+    const markCoreFreshness = vi.fn(async () => undefined)
     const markFreshness = vi.fn(async () => undefined)
     const seedFallback = vi.fn(async () => undefined)
 
@@ -359,6 +386,7 @@ describe('bootstrapWorkerData', () => {
       checkUsableData: async () => {
         throw decisionError
       },
+      markCoreFreshness,
       markFreshness,
       runFallbackSeed: seedFallback,
       runLiveBootstrap: vi.fn(async () => {
@@ -379,11 +407,13 @@ describe('bootstrapWorkerData', () => {
     }
 
     expect(markFreshness).not.toHaveBeenCalled()
+    expect(markCoreFreshness).not.toHaveBeenCalled()
     expect(seedFallback).not.toHaveBeenCalled()
   })
 
   it('does not trigger fallback seeding when marking live freshness fails', async () => {
     const markFailure = new Error('freshness store unavailable')
+    const markCoreFreshness = vi.fn(async () => undefined)
     const markFreshness = vi.fn(async (status: 'live' | 'fallback' | 'degraded') => {
       if (status === 'live') {
         throw markFailure
@@ -396,6 +426,7 @@ describe('bootstrapWorkerData', () => {
         checkUsableData: async () => {
           throw new Error('should not be called')
         },
+        markCoreFreshness,
         markFreshness,
         runFallbackSeed: seedFallback,
         runLiveBootstrap: vi.fn(async () => undefined),
@@ -407,6 +438,7 @@ describe('bootstrapWorkerData', () => {
 
     expect(markFreshness).toHaveBeenCalledTimes(1)
     expect(markFreshness).toHaveBeenCalledWith('live')
+    expect(markCoreFreshness).not.toHaveBeenCalled()
     expect(seedFallback).not.toHaveBeenCalled()
   })
 })

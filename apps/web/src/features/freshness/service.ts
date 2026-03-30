@@ -20,7 +20,9 @@ const CORE_SOURCE_KEYS = [
 ] as const
 
 export function summarizeFreshness(rows: FreshnessRow[]): FreshnessSummary {
-  const statusBySource = new Map(rows.map((row) => [row.sourceKey, row.status]))
+  const statusBySource = new Map(
+    rows.map((row) => [row.sourceKey, normalizeStatus(row.status)]),
+  )
   const coreStatuses = CORE_SOURCE_KEYS.map((sourceKey) =>
     statusBySource.get(sourceKey),
   )
@@ -44,6 +46,10 @@ export function summarizeFreshness(rows: FreshnessRow[]): FreshnessSummary {
     label: 'degraded',
     message: 'Some live sources are stale or unavailable.',
   }
+}
+
+function normalizeStatus(status: string) {
+  return status === 'fresh' ? 'live' : status
 }
 
 export async function getFreshnessSummary() {

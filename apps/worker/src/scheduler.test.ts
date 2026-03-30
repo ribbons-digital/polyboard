@@ -238,6 +238,7 @@ describe('startRefreshScheduler', () => {
     await vi.advanceTimersByTimeAsync(500)
 
     expect(recomputeMarketScores).toHaveBeenCalledWith({
+      freshnessRepo: runtime.repos.freshnessRepo,
       marketRepo: runtime.repos.marketRepo,
       settings: {
         scoreWeights: { marketStructure: 0.3, smartMoney: 0.5, timing: 0.2 },
@@ -248,6 +249,7 @@ describe('startRefreshScheduler', () => {
 
     expect(runBackfillOnce).toHaveBeenCalledWith({
       dataClient: runtime.dataClient,
+      freshnessRepo: runtime.repos.freshnessRepo,
       marketRepo: runtime.repos.marketRepo,
       walletRepo: runtime.repos.walletRepo,
     })

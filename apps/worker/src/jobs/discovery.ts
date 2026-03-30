@@ -11,7 +11,10 @@ export interface DiscoveryMarketRepo {
 }
 
 export interface DiscoveryFreshnessRepo {
-  updateFreshness(sourceKey: string, status: string): Promise<void>
+  updateFreshness(
+    sourceKey: string,
+    status: 'live' | 'degraded' | 'fallback',
+  ): Promise<void>
 }
 
 export interface DiscoveryDeps {
@@ -57,7 +60,7 @@ export async function runDiscoveryOnce(deps: DiscoveryDeps) {
     await deps.marketRepo.replaceTags(market.id, tags)
   }
 
-  await deps.freshnessRepo.updateFreshness('gamma:markets', 'fresh')
+  await deps.freshnessRepo.updateFreshness('gamma:markets', 'live')
 
   return tracked
 }

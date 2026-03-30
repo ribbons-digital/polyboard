@@ -94,6 +94,12 @@ export interface BackfillDeps {
       }>,
     ) => Promise<void>
   }
+  freshnessRepo?: {
+    updateFreshness(
+      sourceKey: string,
+      status: 'live' | 'degraded' | 'fallback',
+    ): Promise<void>
+  }
   marketRepo: {
     listMarketIdsByConditionIds: (
       conditionIds: string[],
@@ -225,6 +231,8 @@ export async function runBackfillOnce(deps: BackfillDeps) {
       )
     }
   }
+
+  await deps.freshnessRepo?.updateFreshness('data:wallets', 'live')
 }
 
 async function fetchPagedRows(

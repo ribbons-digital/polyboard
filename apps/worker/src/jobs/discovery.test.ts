@@ -94,6 +94,6 @@ describe('runDiscoveryOnce', () => {
       { slug: 'crypto', label: 'Crypto' },
       { slug: 'btc', label: 'BTC' },
     ])
-    expect(updateFreshness).toHaveBeenCalledWith('gamma:markets', 'fresh')
+    expect(updateFreshness).toHaveBeenCalledWith('gamma:markets', 'live')
   })
 })

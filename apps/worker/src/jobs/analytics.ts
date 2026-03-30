@@ -31,6 +31,12 @@ export function normalizeScoreWeights(value: unknown) {
 }
 
 export interface RecomputeMarketScoresDeps {
+  freshnessRepo?: {
+    updateFreshness(
+      sourceKey: string,
+      status: 'live' | 'degraded' | 'fallback',
+    ): Promise<void>
+  }
   settings: {
     scoreWeights: unknown
   }
@@ -68,4 +74,6 @@ export async function recomputeMarketScores(
       marketId: signal.marketId,
     })
   }
+
+  await deps.freshnessRepo?.updateFreshness('scores:markets', 'live')
 }
