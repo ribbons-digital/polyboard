@@ -1,4 +1,5 @@
 import type { MarketSocket, MarketSocketMessage } from '@polyboard/polymarket'
+import type { FreshnessStatus } from '@polyboard/db'
 import {
   handleSocketMessage,
   type SnapshotInsertInput,
@@ -22,6 +23,14 @@ interface MarketRepoLike {
   listTrackedTokens: () => Promise<TrackedTokenRow[]>
 }
 
+interface FreshnessRepoLike {
+  updateFreshness(
+    sourceKey: 'ws:markets',
+    status: FreshnessStatus,
+    completeness?: string,
+  ): Promise<void>
+}
+
 interface MarketSocketLike {
   connect: (assetIds: string[]) => void
   disconnect: () => void
@@ -34,6 +43,7 @@ interface MarketSocketLike {
 }
 
 export function createMarketSocketLoop(deps: {
+  freshnessRepo?: FreshnessRepoLike
   logger: LoggerLike
   marketRepo: MarketRepoLike
   marketSocket: MarketSocketLike | MarketSocket
@@ -49,6 +59,17 @@ export function createMarketSocketLoop(deps: {
         token,
       ]),
     )
+
+  const markWebsocketFreshness = async (
+    status: FreshnessStatus,
+    completeness?: string,
+  ) => {
+    await deps.freshnessRepo?.updateFreshness(
+      'ws:markets',
+      status,
+      completeness,
+    )
+  }
 
   const diffTrackedTokens = (
     previousLookup: Map<string, TrackedTokenRow>,
@@ -95,7 +116,9 @@ export function createMarketSocketLoop(deps: {
 
       deps.marketSocket.connect([...nextLookup.keys()])
       tokenLookup = nextLookup
+      await markWebsocketFreshness('live', 'live')
     } catch (error) {
+      await markWebsocketFreshness('degraded', 'degraded')
       deps.logger.error({ err: error }, 'failed to start market socket')
       scheduleReconnect()
     }
@@ -143,11 +166,13 @@ export function createMarketSocketLoop(deps: {
   })
 
   deps.marketSocket.on('error', (error) => {
+    void markWebsocketFreshness('degraded', 'degraded')
     deps.logger.error({ err: error }, 'market socket error')
     scheduleReconnect()
   })
 
   deps.marketSocket.on('close', () => {
+    void markWebsocketFreshness('degraded', 'degraded')
     deps.logger.warn('market socket closed')
     scheduleReconnect()
   })

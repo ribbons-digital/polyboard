@@ -26,6 +26,7 @@ export async function startWorker(
   })
 
   const marketSocketLoop = (deps.createSocketLoop ?? createMarketSocketLoop)({
+    freshnessRepo: runtime.repos.freshnessRepo,
     logger: runtime.logger,
     marketRepo: runtime.repos.marketRepo,
     marketSocket: runtime.marketSocket,

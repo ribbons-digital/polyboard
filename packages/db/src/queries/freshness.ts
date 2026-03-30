@@ -1,8 +1,11 @@
+import { eq, inArray } from 'drizzle-orm'
 import { createDb } from '../client'
 import {
   dataFreshness,
   jobRuns,
+  markets,
   marketScores,
+  wallets,
   walletScores,
 } from '../schema'
 
@@ -66,6 +69,44 @@ export function isFreshnessRowStale(
   return now.getTime() - timestamp > getFreshnessStaleAfterMs(sourceKey)
 }
 
+export interface DashboardUsabilityInput {
+  freshnessRows: Array<{
+    asOf: Date | string | null
+    sourceKey: FreshnessSourceKey
+    status: string
+  }>
+  marketScoreRows: Array<{ marketId: string }>
+  now?: Date
+  walletScoreRows: Array<{ walletAddress: string }>
+}
+
+export function summarizeDashboardUsability(input: DashboardUsabilityInput) {
+  const now = input.now ?? new Date()
+  const freshnessBySource = new Map(
+    input.freshnessRows.map((row) => [
+      row.sourceKey,
+      {
+        asOf: row.asOf,
+        status: normalizeFreshnessStatus(row.status),
+      },
+    ]),
+  )
+
+  return {
+    hasFreshnessRows: freshnessCoreSourceKeys.every((sourceKey) => {
+      const row = freshnessBySource.get(sourceKey)
+
+      return (
+        row !== undefined &&
+        row.status === 'live' &&
+        !isFreshnessRowStale(sourceKey, row.asOf, now)
+      )
+    }),
+    hasMarketScores: input.marketScoreRows.length > 0,
+    hasWalletScores: input.walletScoreRows.length > 0,
+  }
+}
+
 export async function updateFreshness(
   db: DbClient,
   sourceKey: string,
@@ -107,22 +148,34 @@ export async function startJobRun(db: DbClient, jobName: string) {
 }
 
 export async function getDashboardUsability(db: DbClient) {
-  const [freshnessRow] = await db
-    .select({ sourceKey: dataFreshness.sourceKey })
-    .from(dataFreshness)
-    .limit(1)
-  const [marketScore] = await db
-    .select({ marketId: marketScores.marketId })
-    .from(marketScores)
-    .limit(1)
-  const [walletScore] = await db
-    .select({ walletAddress: walletScores.walletAddress })
-    .from(walletScores)
+  const marketScoreRows = await db
+    .select({ marketId: markets.id })
+    .from(markets)
+    .innerJoin(marketScores, eq(marketScores.marketId, markets.id))
     .limit(1)
 
-  return {
-    hasFreshnessRows: freshnessRow !== undefined,
-    hasMarketScores: marketScore !== undefined,
-    hasWalletScores: walletScore !== undefined,
-  }
+  const walletScoreRows = await db
+    .select({ walletAddress: wallets.address })
+    .from(wallets)
+    .innerJoin(walletScores, eq(walletScores.walletAddress, wallets.address))
+    .limit(1)
+
+  const freshnessRows = (await db
+    .select({
+      asOf: dataFreshness.asOf,
+      sourceKey: dataFreshness.sourceKey,
+      status: dataFreshness.status,
+    })
+    .from(dataFreshness)
+    .where(inArray(dataFreshness.sourceKey, freshnessCoreSourceKeys))) as Array<{
+    asOf: Date | string | null
+    sourceKey: FreshnessSourceKey
+    status: string
+  }>
+
+  return summarizeDashboardUsability({
+    freshnessRows,
+    marketScoreRows,
+    walletScoreRows,
+  })
 }

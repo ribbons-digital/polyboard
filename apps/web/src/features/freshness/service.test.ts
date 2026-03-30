@@ -21,6 +21,11 @@ describe('summarizeFreshness', () => {
           sourceKey: 'scores:markets',
           status: 'live',
         },
+        {
+          asOf: new Date('2026-03-30T12:00:25.000Z'),
+          sourceKey: 'ws:markets',
+          status: 'live',
+        },
       ], now),
     ).toEqual({
       label: 'live',
@@ -45,6 +50,11 @@ describe('summarizeFreshness', () => {
         {
           asOf: new Date('2026-03-30T12:00:20.000Z'),
           sourceKey: 'scores:markets',
+          status: 'fresh',
+        },
+        {
+          asOf: new Date('2026-03-30T12:00:25.000Z'),
+          sourceKey: 'ws:markets',
           status: 'fresh',
         },
       ], now),
@@ -76,6 +86,37 @@ describe('summarizeFreshness', () => {
         ],
         new Date('2026-03-30T12:00:00.000Z'),
       ),
+    ).toEqual({
+      label: 'degraded',
+      message: 'Some live sources are stale or unavailable.',
+    })
+  })
+
+  it('marks a stale websocket row degraded even when the core rows are live', () => {
+    const now = new Date('2026-03-30T12:00:30.000Z')
+    expect(
+      summarizeFreshness([
+        {
+          asOf: new Date('2026-03-30T12:00:00.000Z'),
+          sourceKey: 'gamma:markets',
+          status: 'live',
+        },
+        {
+          asOf: new Date('2026-03-30T12:00:10.000Z'),
+          sourceKey: 'data:wallets',
+          status: 'live',
+        },
+        {
+          asOf: new Date('2026-03-30T12:00:20.000Z'),
+          sourceKey: 'scores:markets',
+          status: 'live',
+        },
+        {
+          asOf: new Date('2026-03-30T11:57:00.000Z'),
+          sourceKey: 'ws:markets',
+          status: 'live',
+        },
+      ], now),
     ).toEqual({
       label: 'degraded',
       message: 'Some live sources are stale or unavailable.',
@@ -125,6 +166,11 @@ describe('summarizeFreshness', () => {
         {
           asOf: new Date('2026-03-30T12:00:20.000Z'),
           sourceKey: 'scores:markets',
+          status: 'live',
+        },
+        {
+          asOf: new Date('2026-03-30T12:00:25.000Z'),
+          sourceKey: 'ws:markets',
           status: 'live',
         },
         { sourceKey: 'worker:bootstrap', status: 'fallback' },

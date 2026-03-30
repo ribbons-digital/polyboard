@@ -49,8 +49,12 @@ describe('createMarketSocketLoop', () => {
       .fn<() => Promise<Array<{ marketId: string; tokenId: string }>>>()
       .mockResolvedValueOnce([{ marketId: 'm1', tokenId: 'yes' }])
       .mockResolvedValueOnce([{ marketId: 'm2', tokenId: 'no' }])
+    const updateFreshness = vi.fn(async () => undefined)
 
     const loop = createMarketSocketLoop({
+      freshnessRepo: {
+        updateFreshness,
+      },
       logger: createLogger(),
       marketRepo: {
         insertSnapshot: vi.fn(async () => undefined),
@@ -61,11 +65,17 @@ describe('createMarketSocketLoop', () => {
 
     await loop.start()
     expect(marketSocket.connectCalls).toEqual([['yes']])
+    expect(updateFreshness).toHaveBeenCalledWith('ws:markets', 'live', 'live')
 
     marketSocket.emit('close')
     await vi.advanceTimersByTimeAsync(RECONNECT_DELAY_MS)
 
     expect(marketSocket.connectCalls).toEqual([['yes'], ['no']])
+    expect(updateFreshness).toHaveBeenCalledWith(
+      'ws:markets',
+      'degraded',
+      'degraded',
+    )
   })
 
   it('schedules only one reconnect when error and close fire in the same cycle', async () => {
@@ -76,8 +86,12 @@ describe('createMarketSocketLoop', () => {
       .fn<() => Promise<Array<{ marketId: string; tokenId: string }>>>()
       .mockResolvedValue([{ marketId: 'm1', tokenId: 'yes' }])
     const logger = createLogger()
+    const updateFreshness = vi.fn(async () => undefined)
 
     const loop = createMarketSocketLoop({
+      freshnessRepo: {
+        updateFreshness,
+      },
       logger,
       marketRepo: {
         insertSnapshot: vi.fn(async () => undefined),
@@ -96,6 +110,11 @@ describe('createMarketSocketLoop', () => {
     expect(marketSocket.connectCalls).toEqual([['yes'], ['yes']])
     expect(logger.error).toHaveBeenCalledTimes(1)
     expect(logger.warn).toHaveBeenCalledTimes(1)
+    expect(updateFreshness).toHaveBeenCalledWith(
+      'ws:markets',
+      'degraded',
+      'degraded',
+    )
   })
 
   it('refreshes live subscriptions without waiting for a reconnect', async () => {
@@ -109,6 +128,9 @@ describe('createMarketSocketLoop', () => {
       ])
 
     const loop = createMarketSocketLoop({
+      freshnessRepo: {
+        updateFreshness: vi.fn(async () => undefined),
+      },
       logger: createLogger(),
       marketRepo: {
         insertSnapshot: vi.fn(async () => undefined),
@@ -145,6 +167,9 @@ describe('createMarketSocketLoop', () => {
       })
 
     const loop = createMarketSocketLoop({
+      freshnessRepo: {
+        updateFreshness: vi.fn(async () => undefined),
+      },
       logger,
       marketRepo: {
         insertSnapshot: vi.fn(async () => undefined),
