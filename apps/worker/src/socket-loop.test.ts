@@ -133,35 +133,88 @@ describe('createMarketSocketLoop', () => {
       .fn<() => Promise<Array<{ marketId: string; tokenId: string }>>>()
       .mockResolvedValue([{ marketId: 'm1', tokenId: 'yes' }])
     const logger = createLogger()
-    const updateFreshness = vi.fn(async () => undefined)
-
-    const loop = createMarketSocketLoop({
-      freshnessRepo: {
-        updateFreshness,
-      },
-      logger,
-      marketRepo: {
-        insertSnapshot: vi.fn(async () => undefined),
-        listTrackedTokens,
-      },
-      marketSocket,
+    const updateFreshness = vi.fn(async () => {
+      throw new Error('freshness write failed')
     })
+    const unhandledRejections: unknown[] = []
+    const onUnhandledRejection = (reason: unknown) => {
+      unhandledRejections.push(reason)
+    }
 
-    await loop.start()
-    expect(marketSocket.connectCalls).toEqual([['yes']])
+    process.on('unhandledRejection', onUnhandledRejection)
 
-    marketSocket.emit('error', new Error('socket failed'))
-    marketSocket.emit('close')
-    await vi.advanceTimersByTimeAsync(RECONNECT_DELAY_MS)
+    try {
+      const loop = createMarketSocketLoop({
+        freshnessRepo: {
+          updateFreshness,
+        },
+        logger,
+        marketRepo: {
+          insertSnapshot: vi.fn(async () => undefined),
+          listTrackedTokens,
+        },
+        marketSocket,
+      })
 
-    expect(marketSocket.connectCalls).toEqual([['yes'], ['yes']])
-    expect(logger.error).toHaveBeenCalledTimes(1)
-    expect(logger.warn).toHaveBeenCalledTimes(1)
-    expect(updateFreshness).toHaveBeenCalledWith(
-      'ws:markets',
-      'degraded',
-      'degraded',
-    )
+      await loop.start()
+      expect(marketSocket.connectCalls).toEqual([['yes']])
+
+      marketSocket.emit('error', new Error('socket failed'))
+      marketSocket.emit('close')
+      await vi.advanceTimersByTimeAsync(RECONNECT_DELAY_MS)
+
+      expect(marketSocket.connectCalls).toEqual([['yes'], ['yes']])
+      expect(logger.error).toHaveBeenCalled()
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+      expect(unhandledRejections).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection)
+    }
+  })
+
+  it('reconnects after startup freshness writes fail without leaking rejections', async () => {
+    vi.useFakeTimers()
+
+    const marketSocket = new FakeMarketSocket()
+    const listTrackedTokens = vi
+      .fn<() => Promise<Array<{ marketId: string; tokenId: string }>>>()
+      .mockRejectedValueOnce(new Error('bootstrap failed'))
+      .mockResolvedValueOnce([{ marketId: 'm1', tokenId: 'yes' }])
+    const logger = createLogger()
+    const updateFreshness = vi.fn(async () => {
+      throw new Error('freshness write failed')
+    })
+    const unhandledRejections: unknown[] = []
+    const onUnhandledRejection = (reason: unknown) => {
+      unhandledRejections.push(reason)
+    }
+
+    process.on('unhandledRejection', onUnhandledRejection)
+
+    try {
+      const loop = createMarketSocketLoop({
+        freshnessRepo: {
+          updateFreshness,
+        },
+        logger,
+        marketRepo: {
+          insertSnapshot: vi.fn(async () => undefined),
+          listTrackedTokens,
+        },
+        marketSocket,
+      })
+
+      await loop.start()
+      expect(marketSocket.connectCalls).toEqual([])
+
+      await vi.advanceTimersByTimeAsync(RECONNECT_DELAY_MS)
+
+      expect(marketSocket.connectCalls).toEqual([['yes']])
+      expect(logger.error).toHaveBeenCalled()
+      expect(unhandledRejections).toEqual([])
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection)
+    }
   })
 
   it('refreshes live subscriptions without waiting for a reconnect', async () => {
@@ -173,10 +226,11 @@ describe('createMarketSocketLoop', () => {
         { marketId: 'm1', tokenId: 'yes' },
         { marketId: 'm2', tokenId: 'no' },
       ])
+    const updateFreshness = vi.fn(async () => undefined)
 
     const loop = createMarketSocketLoop({
       freshnessRepo: {
-        updateFreshness: vi.fn(async () => undefined),
+        updateFreshness,
       },
       logger: createLogger(),
       marketRepo: {
@@ -207,6 +261,7 @@ describe('createMarketSocketLoop', () => {
         { marketId: 'm2', tokenId: 'no' },
       ])
     const logger = createLogger()
+    const updateFreshness = vi.fn(async () => undefined)
     const subscribe = vi
       .spyOn(marketSocket, 'subscribe')
       .mockImplementationOnce(() => {
@@ -215,7 +270,7 @@ describe('createMarketSocketLoop', () => {
 
     const loop = createMarketSocketLoop({
       freshnessRepo: {
-        updateFreshness: vi.fn(async () => undefined),
+        updateFreshness,
       },
       logger,
       marketRepo: {
@@ -234,5 +289,10 @@ describe('createMarketSocketLoop', () => {
     expect(subscribe).toHaveBeenNthCalledWith(1, ['no'])
     expect(subscribe).toHaveBeenNthCalledWith(2, ['no'])
     expect(logger.error).toHaveBeenCalledTimes(1)
+    expect(updateFreshness).toHaveBeenCalledWith(
+      'ws:markets',
+      'degraded',
+      'degraded',
+    )
   })
 })

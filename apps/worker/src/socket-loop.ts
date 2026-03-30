@@ -71,6 +71,20 @@ export function createMarketSocketLoop(deps: {
     )
   }
 
+  const markWebsocketFreshnessSafely = async (
+    status: FreshnessStatus,
+    completeness?: string,
+  ) => {
+    try {
+      await markWebsocketFreshness(status, completeness)
+    } catch (error) {
+      deps.logger.error(
+        { err: error },
+        'failed to update websocket freshness',
+      )
+    }
+  }
+
   const diffTrackedTokens = (
     previousLookup: Map<string, TrackedTokenRow>,
     nextLookup: Map<string, TrackedTokenRow>,
@@ -116,9 +130,9 @@ export function createMarketSocketLoop(deps: {
 
       deps.marketSocket.connect([...nextLookup.keys()])
       tokenLookup = nextLookup
-      await markWebsocketFreshness('live', 'live')
+      await markWebsocketFreshnessSafely('live', 'live')
     } catch (error) {
-      await markWebsocketFreshness('degraded', 'degraded')
+      await markWebsocketFreshnessSafely('degraded', 'degraded')
       deps.logger.error({ err: error }, 'failed to start market socket')
       scheduleReconnect()
     }
@@ -146,6 +160,7 @@ export function createMarketSocketLoop(deps: {
 
       tokenLookup = nextLookup
     } catch (error) {
+      await markWebsocketFreshnessSafely('degraded', 'degraded')
       deps.logger.error(
         { err: error },
         'failed to refresh market socket subscriptions',
@@ -160,20 +175,20 @@ export function createMarketSocketLoop(deps: {
         message as MarketSocketMessage,
         deps.marketRepo.insertSnapshot,
       )
-      await markWebsocketFreshness('live', 'live')
+      await markWebsocketFreshnessSafely('live', 'live')
     } catch (error) {
       deps.logger.error({ err: error }, 'failed to persist market snapshot')
     }
   })
 
   deps.marketSocket.on('error', (error) => {
-    void markWebsocketFreshness('degraded', 'degraded')
+    void markWebsocketFreshnessSafely('degraded', 'degraded')
     deps.logger.error({ err: error }, 'market socket error')
     scheduleReconnect()
   })
 
   deps.marketSocket.on('close', () => {
-    void markWebsocketFreshness('degraded', 'degraded')
+    void markWebsocketFreshnessSafely('degraded', 'degraded')
     deps.logger.warn('market socket closed')
     scheduleReconnect()
   })
