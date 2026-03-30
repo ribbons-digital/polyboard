@@ -119,7 +119,6 @@ async function handleLiveBootstrapFailure(
 
   try {
     if (state.hasFallbackRows === true) {
-      await deps.markCoreFreshness('fallback')
       await deps.markFreshness('fallback')
       return 'fallback'
     }

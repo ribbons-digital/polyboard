@@ -41,7 +41,7 @@ describe('shouldRunFallbackSeed', () => {
     ).toBe(false)
   })
 
-  it('preserves fallback freshness when bootstrap fails again after fallback-backed rows already exist', async () => {
+  it('preserves mixed live and fallback freshness when bootstrap fails again', async () => {
     const getDashboardUsability = vi.fn(async () => ({
       hasFallbackRows: true,
       hasFreshnessRows: true,
@@ -88,25 +88,25 @@ describe('shouldRunFallbackSeed', () => {
 
     expect(getDashboardUsability).toHaveBeenCalledTimes(1)
     expect(seedFallback).not.toHaveBeenCalled()
-    expect(updateFreshness).toHaveBeenCalledWith(
+    expect(updateFreshness).not.toHaveBeenCalledWith(
       'gamma:markets',
-      'fallback',
-      'fallback',
-    )
-    expect(updateFreshness).toHaveBeenCalledWith(
-      'data:wallets',
-      'fallback',
-      'fallback',
-    )
-    expect(updateFreshness).toHaveBeenCalledWith(
-      'scores:markets',
       'fallback',
       'fallback',
     )
     expect(updateFreshness).not.toHaveBeenCalledWith(
-      'gamma:markets',
-      'degraded',
-      'degraded',
+      'data:wallets',
+      'fallback',
+      'fallback',
+    )
+    expect(updateFreshness).not.toHaveBeenCalledWith(
+      'scores:markets',
+      'fallback',
+      'fallback',
+    )
+    expect(updateFreshness).toHaveBeenCalledWith(
+      'worker:bootstrap',
+      'fallback',
+      'fallback',
     )
   })
 })
