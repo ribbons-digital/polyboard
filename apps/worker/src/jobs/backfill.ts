@@ -11,6 +11,10 @@ const CLOSED_POSITIONS_PAGE_LIMIT = 50
 const TRADES_PAGE_LIMIT = 500
 
 export interface BackfillDeps {
+  maxWallets?: number
+  logger?: {
+    warn?: (...args: unknown[]) => void
+  }
   dataClient: {
     getLeaderboard: (
       query?: Record<string, string | number | boolean | undefined>,
@@ -142,99 +146,130 @@ export async function runBackfillOnce(deps: BackfillDeps) {
 
   await deps.walletRepo.upsertWalletProfiles(walletProfiles)
 
-  for (const wallet of walletProfiles.slice(0, 50)) {
-    const [openRows, closedRows, tradeRows, valueRows] = await Promise.all([
-      fetchPagedRows((query) => deps.dataClient.getPositions(query), {
-        limit: OPEN_POSITIONS_PAGE_LIMIT,
-        user: wallet.address,
-      }),
-      fetchPagedRows((query) => deps.dataClient.getClosedPositions(query), {
-        limit: CLOSED_POSITIONS_PAGE_LIMIT,
-        user: wallet.address,
-      }),
-      fetchPagedRows((query) => deps.dataClient.getTrades(query), {
-        limit: TRADES_PAGE_LIMIT,
-        takerOnly: false,
-        user: wallet.address,
-      }),
-      deps.dataClient.getValue(wallet.address),
-    ])
-    const trackedConditionIds = collectConditionIds(
-      openRows,
-      closedRows,
-      tradeRows,
-    )
-    const marketIdLookup = await deps.marketRepo.listMarketIdsByConditionIds(
-      trackedConditionIds,
-    )
-    const mappedOpenPositions = mapOpenPositions(openRows, marketIdLookup)
-    const mappedClosedPositions = mapClosedPositions(closedRows, marketIdLookup)
-    const closedPositionMetrics = mapClosedPositionMetrics(
-      closedRows,
-      marketIdLookup,
-    )
-    const closedPositionEventStats = mapClosedPositionEventStats(
-      closedRows,
-      marketIdLookup,
-    )
-    const mappedTrades = mapTrades(tradeRows, marketIdLookup)
-    const mappedTradeEventStats = mapTradeEventStats(
-      tradeRows,
-      marketIdLookup,
-    )
-    const unrealizedPnl = getNumericValue(valueRows[0]?.value)
+  const maxWallets = Math.max(1, Math.trunc(deps.maxWallets ?? 50))
+  let processedWalletCount = 0
 
-    await deps.walletRepo.replaceOpenPositions(
-      wallet.address,
-      mappedOpenPositions,
-    )
-    await deps.walletRepo.replaceClosedPositions(
-      wallet.address,
-      mappedClosedPositions,
-    )
-    await deps.walletRepo.replaceTrades(wallet.address, mappedTrades)
-    await deps.walletRepo.replaceWalletEventStats(
-      wallet.address,
-      buildEventStats(mappedTradeEventStats, closedPositionEventStats),
-    )
+  for (const wallet of walletProfiles.slice(0, maxWallets)) {
+    try {
+      const [openRows, closedRows, tradeRows, valueRows] = await Promise.all([
+        fetchPagedRows((query) => deps.dataClient.getPositions(query), {
+          limit: OPEN_POSITIONS_PAGE_LIMIT,
+          user: wallet.address,
+        }),
+        fetchPagedRows((query) => deps.dataClient.getClosedPositions(query), {
+          limit: CLOSED_POSITIONS_PAGE_LIMIT,
+          user: wallet.address,
+        }),
+        fetchPagedRows((query) => deps.dataClient.getTrades(query), {
+          limit: TRADES_PAGE_LIMIT,
+          takerOnly: false,
+          user: wallet.address,
+        }),
+        deps.dataClient.getValue(wallet.address),
+      ])
+      const trackedConditionIds = collectConditionIds(
+        openRows,
+        closedRows,
+        tradeRows,
+      )
+      const marketIdLookup = await deps.marketRepo.listMarketIdsByConditionIds(
+        trackedConditionIds,
+      )
+      const mappedOpenPositions = mapOpenPositions(openRows, marketIdLookup)
+      const mappedClosedPositions = mapClosedPositions(closedRows, marketIdLookup)
+      const closedPositionMetrics = mapClosedPositionMetrics(
+        closedRows,
+        marketIdLookup,
+      )
+      const closedPositionEventStats = mapClosedPositionEventStats(
+        closedRows,
+        marketIdLookup,
+      )
+      const mappedTrades = mapTrades(tradeRows, marketIdLookup)
+      const mappedTradeEventStats = mapTradeEventStats(
+        tradeRows,
+        marketIdLookup,
+      )
+      const unrealizedPnl = getNumericValue(valueRows[0]?.value)
 
-    const metrics = summarizeWalletMetrics({
-      closedPositions: closedPositionMetrics,
-      realizedPnl: closedPositionMetrics.reduce(
-        (sum, row) => sum + row.realizedPnl,
-        0,
-      ),
-      unrealizedPnl,
-    })
+      await deps.walletRepo.replaceOpenPositions(
+        wallet.address,
+        mappedOpenPositions,
+      )
+      await deps.walletRepo.replaceClosedPositions(
+        wallet.address,
+        mappedClosedPositions,
+      )
+      await deps.walletRepo.replaceTrades(wallet.address, mappedTrades)
+      await deps.walletRepo.replaceWalletEventStats(
+        wallet.address,
+        buildEventStats(mappedTradeEventStats, closedPositionEventStats),
+      )
 
-    await deps.walletRepo.upsertWalletScore({
-      averagePositionSize: metrics.averagePositionSize,
-      completeness: 'provisional',
-      realizedPnl: metrics.realizedPnl,
-      tags: deriveWalletTags(metrics),
-      totalPnl: metrics.totalPnl,
-      unrealizedPnl: metrics.unrealizedPnl,
-      walletAddress: wallet.address,
-      winRate: metrics.winRate,
-    })
+      const metrics = summarizeWalletMetrics({
+        closedPositions: closedPositionMetrics,
+        realizedPnl: closedPositionMetrics.reduce(
+          (sum, row) => sum + row.realizedPnl,
+          0,
+        ),
+        unrealizedPnl,
+      })
 
-    for (const conditionId of trackedConditionIds) {
-      const marketId = marketIdLookup.get(conditionId)
+      await deps.walletRepo.upsertWalletScore({
+        averagePositionSize: metrics.averagePositionSize,
+        completeness: 'provisional',
+        realizedPnl: metrics.realizedPnl,
+        tags: deriveWalletTags(metrics),
+        totalPnl: metrics.totalPnl,
+        unrealizedPnl: metrics.unrealizedPnl,
+        walletAddress: wallet.address,
+        winRate: metrics.winRate,
+      })
 
-      if (marketId === undefined) {
-        continue
+      for (const conditionId of trackedConditionIds) {
+        const marketId = marketIdLookup.get(conditionId)
+
+        if (marketId === undefined) {
+          continue
+        }
+
+        const holders = await deps.dataClient.getHolders(conditionId)
+
+        await deps.marketRepo.replaceMarketHolders(
+          marketId,
+          normalizeHolderRows(holders),
+        )
       }
 
-      const holders = await deps.dataClient.getHolders(conditionId)
+      processedWalletCount += 1
+    } catch (error) {
+      if (!isRateLimitedError(error)) {
+        throw error
+      }
 
-      await deps.marketRepo.replaceMarketHolders(
-        marketId,
-        normalizeHolderRows(holders),
+      deps.logger?.warn?.(
+        {
+          err: error,
+          walletAddress: wallet.address,
+        },
+        'wallet backfill rate-limited; skipping wallet this cycle',
       )
     }
   }
 
+  if (walletProfiles.length > 0 && processedWalletCount === 0) {
+    throw new Error('Wallet backfill was rate-limited for all selected wallets')
+  }
+
   await deps.freshnessRepo?.updateFreshness('data:wallets', 'live')
+}
+
+function isRateLimitedError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false
+  }
+
+  return error.message.includes('429 Too Many Requests')
 }
 
 async function fetchPagedRows(
@@ -248,10 +283,29 @@ async function fetchPagedRows(
   const rows: RawRow[] = []
 
   for (;;) {
-    const page = await fetchPage({
-      ...baseQuery,
-      offset,
-    })
+    let page: RawRow[]
+
+    try {
+      page = await fetchPage({
+        ...baseQuery,
+        offset,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+
+      // Polymarket can return 400/429 when offset pagination goes past available pages
+      // or a deep page is throttled. Treat that as exhaustion instead of failing the
+      // full wallet backfill for the current wallet.
+      if (
+        offset > 0 &&
+        (message.includes('400 Bad Request') ||
+          message.includes('429 Too Many Requests'))
+      ) {
+        return rows
+      }
+
+      throw error
+    }
 
     rows.push(...page)
 

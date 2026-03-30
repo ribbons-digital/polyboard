@@ -181,7 +181,7 @@ describe('bootstrapWorkerData', () => {
         getTrades: vi.fn(),
         getValue: vi.fn(),
       },
-      env: { minMarketVolume: 50_000 },
+      env: { backfillBatchSize: 50, minMarketVolume: 50_000 },
       gammaClient: { getMarketTags: vi.fn(), listMarkets: vi.fn() },
       repos: {
         freshnessRepo: {
@@ -210,6 +210,11 @@ describe('bootstrapWorkerData', () => {
         },
       },
       seedFallback: vi.fn(async () => undefined),
+      logger: {
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+      },
       settingsRepo: {
         getSettings: vi.fn(async () => ({
           scoreWeights: { marketStructure: 0.35, smartMoney: 0.45, timing: 0.2 },
@@ -229,12 +234,14 @@ describe('bootstrapWorkerData', () => {
     expect(runDiscoveryOnce).toHaveBeenCalledWith({
       freshnessRepo: runtime.repos.freshnessRepo,
       gammaClient: runtime.gammaClient,
+      logger: runtime.logger,
       marketRepo: runtime.repos.marketRepo,
       minVolume: runtime.env.minMarketVolume,
     })
     expect(runBackfillOnce).toHaveBeenCalledWith({
       dataClient: runtime.dataClient,
       freshnessRepo: runtime.repos.freshnessRepo,
+      maxWallets: runtime.env.backfillBatchSize,
       marketRepo: runtime.repos.marketRepo,
       walletRepo: runtime.repos.walletRepo,
     })
@@ -262,6 +269,7 @@ describe('bootstrapWorkerData', () => {
         dataClient: {},
         db: {},
         env: {
+          backfillBatchSize: 50,
           discoveryIntervalMs: 1_000,
           minMarketVolume: 50_000,
           scoreRefreshIntervalMs: 1_500,
@@ -416,10 +424,15 @@ describe('bootstrapWorkerData', () => {
 
     await runtime.dataClient.getLeaderboard()
 
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const firstCall = fetchMock.mock.calls[0] as unknown[] | undefined
+    expect(firstCall).toBeDefined()
+    const calledUrl = firstCall?.[0]
+    const calledInit = firstCall?.[1]
+    expect(String(calledUrl)).toBe(
       'https://data-api.polymarket.com/v1/leaderboard',
-      undefined,
     )
+    expect(calledInit).toBeUndefined()
 
     vi.unstubAllGlobals()
   })

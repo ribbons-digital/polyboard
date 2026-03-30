@@ -21,8 +21,13 @@ export interface DiscoveryFreshnessRepo {
 
 export interface DiscoveryDeps {
   minVolume: number
+  logger?: {
+    warn?: (...args: unknown[]) => void
+  }
   gammaClient: {
-    listMarkets(): Promise<NormalizedMarket[]>
+    listMarkets(
+      query?: Record<string, string | number | boolean | undefined>,
+    ): Promise<NormalizedMarket[]>
     getMarketTags(marketId: string): Promise<Array<Record<string, unknown>>>
   }
   marketRepo: DiscoveryMarketRepo
@@ -41,7 +46,11 @@ function normalizeTag(input: Record<string, unknown>): MarketTag | null {
 }
 
 export async function runDiscoveryOnce(deps: DiscoveryDeps) {
-  const markets = await deps.gammaClient.listMarkets()
+  const markets = await deps.gammaClient.listMarkets({
+    active: true,
+    closed: false,
+    limit: 500,
+  })
   const tracked = markets.filter(
     (market) =>
       market.active &&
@@ -53,7 +62,20 @@ export async function runDiscoveryOnce(deps: DiscoveryDeps) {
   await deps.marketRepo.upsertMarkets(tracked)
 
   for (const market of tracked) {
-    const rawTags = await deps.gammaClient.getMarketTags(market.id)
+    let rawTags: Array<Record<string, unknown>> = []
+
+    try {
+      rawTags = await deps.gammaClient.getMarketTags(market.id)
+    } catch (error) {
+      deps.logger?.warn?.(
+        {
+          err: error,
+          marketId: market.id,
+        },
+        'failed to fetch market tags; continuing with empty tags',
+      )
+    }
+
     const tags = rawTags.flatMap((tag) => {
       const normalized = normalizeTag(tag)
       return normalized === null ? [] : [normalized]

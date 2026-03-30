@@ -242,8 +242,13 @@ export async function listSignalInputs(db: DbClient) {
   const snapshotScores = db
     .select({
       marketId: marketSnapshots.marketId,
-      marketStructureScore: sql<number>`avg(${marketSnapshots.lastPrice})::float`,
-      timingScore: sql<number>`avg(${marketSnapshots.spreadBps})::float`,
+      marketStructureScore:
+        sql<number>`avg(${marketSnapshots.lastPrice})::float`.as(
+          'market_structure_score',
+        ),
+      timingScore: sql<number>`avg(${marketSnapshots.spreadBps})::float`.as(
+        'timing_score',
+      ),
     })
     .from(marketSnapshots)
     .groupBy(marketSnapshots.marketId)
@@ -252,7 +257,10 @@ export async function listSignalInputs(db: DbClient) {
   const holderScores = db
     .select({
       marketId: marketHolders.marketId,
-      totalCurrentValue: sql<number>`sum(${marketHolders.currentValue})::float`,
+      totalCurrentValue:
+        sql<number>`sum(${marketHolders.currentValue})::float`.as(
+          'total_current_value',
+        ),
     })
     .from(marketHolders)
     .groupBy(marketHolders.marketId)

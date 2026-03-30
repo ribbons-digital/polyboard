@@ -19,9 +19,15 @@ type DashboardUsability = {
 export interface WorkerBootstrapRuntime {
   dataClient: BackfillDeps['dataClient']
   env: {
+    backfillBatchSize: number
     minMarketVolume: number
   }
   gammaClient: DiscoveryDeps['gammaClient']
+  logger: {
+    error?: (...args: unknown[]) => void
+    info?: (...args: unknown[]) => void
+    warn?: (...args: unknown[]) => void
+  }
   repos: {
     freshnessRepo: {
       getDashboardUsability: () => Promise<DashboardUsability>
@@ -74,6 +80,7 @@ export function createLiveBootstrapRunner(
     await runDiscovery({
       freshnessRepo: runtime.repos.freshnessRepo,
       gammaClient: runtime.gammaClient,
+      logger: runtime.logger,
       marketRepo: runtime.repos.marketRepo,
       minVolume: runtime.env.minMarketVolume,
     })
@@ -81,6 +88,7 @@ export function createLiveBootstrapRunner(
     await runBackfill({
       dataClient: runtime.dataClient,
       freshnessRepo: runtime.repos.freshnessRepo,
+      maxWallets: runtime.env.backfillBatchSize,
       marketRepo: runtime.repos.marketRepo,
       walletRepo: runtime.repos.walletRepo,
     })

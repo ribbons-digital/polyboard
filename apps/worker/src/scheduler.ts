@@ -21,6 +21,7 @@ interface LoggerLike {
 interface RuntimeRefreshScheduler {
   dataClient: BackfillDeps['dataClient']
   env: {
+    backfillBatchSize: number
     discoveryIntervalMs: number
     minMarketVolume: number
     scoreRefreshIntervalMs: number
@@ -152,6 +153,7 @@ export function startRuntimeRefreshScheduler(
         await discovery({
           freshnessRepo: runtime.repos.freshnessRepo,
           gammaClient: runtime.gammaClient,
+          logger: runtime.logger,
           marketRepo: runtime.repos.marketRepo,
           minVolume: runtime.env.minMarketVolume,
         })
@@ -179,6 +181,7 @@ export function startRuntimeRefreshScheduler(
         await backfill({
           dataClient: runtime.dataClient,
           freshnessRepo: runtime.repos.freshnessRepo,
+          maxWallets: runtime.env.backfillBatchSize,
           marketRepo: runtime.repos.marketRepo,
           walletRepo: runtime.repos.walletRepo,
         })

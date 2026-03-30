@@ -22,7 +22,10 @@ export const Route = createRootRouteWithContext<{
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       { title: 'Polyboard' },
     ],
-    links: [{ rel: 'stylesheet', href: appCss }],
+    links: [
+      { rel: 'stylesheet', href: appCss },
+      { href: '/favicon.svg', rel: 'icon', type: 'image/svg+xml' },
+    ],
   }),
   component: RootComponent,
 })
@@ -40,7 +43,7 @@ function RootComponent() {
               <h1>Polyboard</h1>
             </div>
             <nav className="nav">
-              <Link to="/">Overview</Link>
+              <Link to="/">Dashboard</Link>
               <Link to={"/markets" as never}>Markets</Link>
               <Link to={"/wallets" as never}>Wallets</Link>
               <Link to={"/settings" as never}>Settings</Link>

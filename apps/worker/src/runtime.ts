@@ -21,8 +21,29 @@ import {
 } from '@polyboard/db'
 import { DataClient, GammaClient, MarketSocket } from '@polyboard/polymarket'
 import pino from 'pino'
-import { seedDevelopmentData } from '../../../scripts/seed-dev'
+import * as seedDevScript from '../../../scripts/seed-dev'
 import { parseWorkerEnv } from './config'
+
+type SeedDevScriptModule = {
+  default?: {
+    seedDevelopmentData?: () => Promise<void>
+  }
+  seedDevelopmentData?: () => Promise<void>
+}
+
+function resolveSeedFallback() {
+  const module = seedDevScript as SeedDevScriptModule | undefined
+  const seedFunction =
+    module?.seedDevelopmentData ?? module?.default?.seedDevelopmentData
+
+  if (typeof seedFunction === 'function') {
+    return seedFunction
+  }
+
+  return async () => {
+    throw new Error('scripts/seed-dev did not export seedDevelopmentData')
+  }
+}
 
 export function createRuntime(env: Record<string, string | undefined> = process.env) {
   const parsedEnv = parseWorkerEnv(env)
@@ -39,7 +60,7 @@ export function createRuntime(env: Record<string, string | undefined> = process.
     gammaClient,
     logger,
     marketSocket,
-    seedFallback: seedDevelopmentData,
+    seedFallback: resolveSeedFallback(),
     repos: {
       freshnessRepo: {
         getDashboardUsability: () => getDashboardUsability(db),

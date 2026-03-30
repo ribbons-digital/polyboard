@@ -185,6 +185,173 @@ describe('runBackfillOnce', () => {
     })
   })
 
+  it('treats high-offset trade 400 responses as pagination exhaustion', async () => {
+    const updateFreshness = vi.fn(async () => undefined)
+    const getTrades = vi.fn(
+      async (query?: Record<string, string | number | boolean | undefined>) => {
+        const offset = Number(query?.offset ?? 0)
+
+        if (offset < 3_500) {
+          return Array.from({ length: 500 }, (_, index) => ({
+            asset: 'token-1',
+            conditionId: `0xcondition-${offset}-${index}`,
+            eventSlug: 'event-a',
+            price: 0.55,
+            proxyWallet: '0xwallet',
+            side: 'BUY',
+            size: 10,
+            timestamp: 1_700_000_000 + index,
+            transactionHash: `0xtrade-${offset}-${index}`,
+          }))
+        }
+
+        throw new Error('Polymarket request failed: 400 Bad Request')
+      },
+    )
+
+    await expect(
+      runBackfillOnce({
+        dataClient: {
+          getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
+          getPositions: async () => [],
+          getClosedPositions: async () => [],
+          getTrades,
+          getHolders: async () => [],
+          getValue: async () => [{ value: 12 }],
+        },
+        freshnessRepo: {
+          updateFreshness,
+        },
+        marketRepo: {
+          listMarketIdsByConditionIds: async () => new Map(),
+          replaceMarketHolders: vi.fn(async () => undefined),
+        },
+        walletRepo: {
+          replaceClosedPositions: vi.fn(async () => undefined),
+          replaceOpenPositions: vi.fn(async () => undefined),
+          replaceTrades: vi.fn(async () => undefined),
+          replaceWalletEventStats: vi.fn(async () => undefined),
+          upsertWalletProfiles: vi.fn(async () => undefined),
+          upsertWalletScore: vi.fn(async () => undefined),
+        },
+      }),
+    ).resolves.toBeUndefined()
+
+    expect(updateFreshness).toHaveBeenCalledWith('data:wallets', 'live')
+    expect(getTrades).toHaveBeenCalledWith({
+      limit: 500,
+      offset: 3_500,
+      takerOnly: false,
+      user: '0xwallet',
+    })
+  })
+
+  it('treats high-offset trade 429 responses as pagination exhaustion', async () => {
+    const updateFreshness = vi.fn(async () => undefined)
+    const getTrades = vi.fn(
+      async (query?: Record<string, string | number | boolean | undefined>) => {
+        const offset = Number(query?.offset ?? 0)
+
+        if (offset < 3_500) {
+          return Array.from({ length: 500 }, (_, index) => ({
+            asset: 'token-1',
+            conditionId: `0xcondition-${offset}-${index}`,
+            eventSlug: 'event-a',
+            price: 0.55,
+            proxyWallet: '0xwallet',
+            side: 'BUY',
+            size: 10,
+            timestamp: 1_700_000_000 + index,
+            transactionHash: `0xtrade-${offset}-${index}`,
+          }))
+        }
+
+        throw new Error('Polymarket request failed: 429 Too Many Requests')
+      },
+    )
+
+    await expect(
+      runBackfillOnce({
+        dataClient: {
+          getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
+          getPositions: async () => [],
+          getClosedPositions: async () => [],
+          getTrades,
+          getHolders: async () => [],
+          getValue: async () => [{ value: 12 }],
+        },
+        freshnessRepo: {
+          updateFreshness,
+        },
+        marketRepo: {
+          listMarketIdsByConditionIds: async () => new Map(),
+          replaceMarketHolders: vi.fn(async () => undefined),
+        },
+        walletRepo: {
+          replaceClosedPositions: vi.fn(async () => undefined),
+          replaceOpenPositions: vi.fn(async () => undefined),
+          replaceTrades: vi.fn(async () => undefined),
+          replaceWalletEventStats: vi.fn(async () => undefined),
+          upsertWalletProfiles: vi.fn(async () => undefined),
+          upsertWalletScore: vi.fn(async () => undefined),
+        },
+      }),
+    ).resolves.toBeUndefined()
+
+    expect(updateFreshness).toHaveBeenCalledWith('data:wallets', 'live')
+    expect(getTrades).toHaveBeenCalledWith({
+      limit: 500,
+      offset: 3_500,
+      takerOnly: false,
+      user: '0xwallet',
+    })
+  })
+
+  it('continues with other wallets when one wallet backfill is rate-limited', async () => {
+    const replaceOpenPositions = vi.fn(async () => undefined)
+    const updateFreshness = vi.fn(async () => undefined)
+
+    await expect(
+      runBackfillOnce({
+        dataClient: {
+          getLeaderboard: async () => [
+            { proxyWallet: '0xrate' },
+            { proxyWallet: '0xok' },
+          ],
+          getPositions: async (query) => {
+            if (query.user === '0xrate') {
+              throw new Error('Polymarket request failed: 429 Too Many Requests')
+            }
+
+            return []
+          },
+          getClosedPositions: async () => [],
+          getTrades: async () => [],
+          getHolders: async () => [],
+          getValue: async () => [{ value: 12 }],
+        },
+        freshnessRepo: {
+          updateFreshness,
+        },
+        marketRepo: {
+          listMarketIdsByConditionIds: async () => new Map(),
+          replaceMarketHolders: vi.fn(async () => undefined),
+        },
+        walletRepo: {
+          replaceClosedPositions: vi.fn(async () => undefined),
+          replaceOpenPositions,
+          replaceTrades: vi.fn(async () => undefined),
+          replaceWalletEventStats: vi.fn(async () => undefined),
+          upsertWalletProfiles: vi.fn(async () => undefined),
+          upsertWalletScore: vi.fn(async () => undefined),
+        },
+      }),
+    ).resolves.toBeUndefined()
+
+    expect(replaceOpenPositions).toHaveBeenCalledWith('0xok', [])
+    expect(updateFreshness).toHaveBeenCalledWith('data:wallets', 'live')
+  })
+
   it('persists nested market holder responses for mapped condition ids', async () => {
     const replaceMarketHolders = vi.fn(async () => undefined)
 

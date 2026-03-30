@@ -169,6 +169,7 @@ describe('startRefreshScheduler', () => {
         getValue: vi.fn(),
       },
       env: {
+        backfillBatchSize: 50,
         discoveryIntervalMs: 1_000,
         minMarketVolume: 50_000,
         scoreRefreshIntervalMs: 1_500,
@@ -228,6 +229,7 @@ describe('startRefreshScheduler', () => {
     expect(runDiscoveryOnce).toHaveBeenCalledWith({
       freshnessRepo: runtime.repos.freshnessRepo,
       gammaClient: runtime.gammaClient,
+      logger: runtime.logger,
       marketRepo: runtime.repos.marketRepo,
       minVolume: runtime.env.minMarketVolume,
     })
@@ -250,6 +252,7 @@ describe('startRefreshScheduler', () => {
     expect(runBackfillOnce).toHaveBeenCalledWith({
       dataClient: runtime.dataClient,
       freshnessRepo: runtime.repos.freshnessRepo,
+      maxWallets: runtime.env.backfillBatchSize,
       marketRepo: runtime.repos.marketRepo,
       walletRepo: runtime.repos.walletRepo,
     })
@@ -271,6 +274,7 @@ describe('startRefreshScheduler', () => {
         getValue: vi.fn(),
       },
       env: {
+        backfillBatchSize: 50,
         discoveryIntervalMs: 1_000,
         minMarketVolume: 50_000,
         scoreRefreshIntervalMs: 1_500,
