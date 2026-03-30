@@ -193,6 +193,12 @@ export async function replaceTrades(
   walletAddress: string,
   rows: WalletTradeInput[],
 ) {
+  await db.delete(walletTrades).where(eq(walletTrades.walletAddress, walletAddress))
+
+  if (rows.length === 0) {
+    return
+  }
+
   for (const row of rows) {
     await db
       .insert(walletTrades)
@@ -206,7 +212,6 @@ export async function replaceTrades(
         transactionHash: row.transactionHash,
         walletAddress,
       })
-      .onConflictDoNothing()
   }
 }
 

@@ -191,23 +191,7 @@ export async function runBackfillOnce(deps: BackfillDeps) {
 
       await deps.marketRepo.replaceMarketHolders(
         marketId,
-        holders.flatMap((row) => {
-          const walletAddress = getAddress(row)
-          const tokenId = getOptionalString(row.asset)
-
-          if (walletAddress === null || tokenId === null) {
-            return []
-          }
-
-          return [
-            {
-              currentValue: getOptionalNumber(row.currentValue) ?? undefined,
-              size: getNumericValue(row.size),
-              tokenId,
-              walletAddress,
-            },
-          ]
-        }),
+        normalizeHolderRows(holders),
       )
     }
   }
@@ -253,15 +237,16 @@ function mapClosedPositions(
 ) {
   return rows.flatMap((row) => {
     const mapped = mapMarketRow(row, marketIdLookup)
+    const closedAt = getDateValue(row.timestamp)
 
-    if (mapped === null) {
+    if (mapped === null || closedAt === null) {
       return []
     }
 
     return [
       {
         averagePrice: getNumericValue(row.avgPrice),
-        closedAt: getDateValue(row.timestamp),
+        closedAt,
         marketId: mapped.marketId,
         outcome: getOptionalString(row.outcome) ?? 'Unknown',
         realizedPnl: getNumericValue(row.realizedPnl),
@@ -275,10 +260,11 @@ function mapClosedPositions(
 function mapTrades(rows: RawRow[], marketIdLookup: Map<string, string>) {
   return rows.flatMap((row) => {
     const mapped = mapMarketRow(row, marketIdLookup)
+    const tradedAt = getDateValue(row.timestamp)
     const transactionHash =
       getOptionalString(row.transactionHash) ?? getOptionalString(row.hash)
 
-    if (mapped === null || transactionHash === null) {
+    if (mapped === null || tradedAt === null || transactionHash === null) {
       return []
     }
 
@@ -289,7 +275,7 @@ function mapTrades(rows: RawRow[], marketIdLookup: Map<string, string>) {
         side: getOptionalString(row.side) ?? 'UNKNOWN',
         size: getNumericValue(row.size),
         tokenId: mapped.tokenId,
-        tradedAt: getDateValue(row.timestamp),
+        tradedAt,
         transactionHash,
       },
     ]
@@ -302,8 +288,9 @@ function mapClosedPositionMetrics(
 ) {
   return rows.flatMap((row) => {
     const mapped = mapMarketRow(row, marketIdLookup)
+    const closedAt = getDateValue(row.timestamp)
 
-    if (mapped === null) {
+    if (mapped === null || closedAt === null) {
       return []
     }
 
@@ -317,6 +304,44 @@ function mapClosedPositionMetrics(
       },
     ]
   })
+}
+
+function normalizeHolderRows(rows: RawRow[]) {
+  return rows.flatMap((row) => {
+    if (Array.isArray(row.holders)) {
+      const fallbackTokenId = getOptionalString(row.token)
+
+      return row.holders.flatMap((holder) =>
+        normalizeHolderRow(
+          holder as Record<string, unknown>,
+          fallbackTokenId,
+        ),
+      )
+    }
+
+    return normalizeHolderRow(row, getOptionalString(row.token))
+  })
+}
+
+function normalizeHolderRow(
+  row: RawRow,
+  fallbackTokenId: string | null,
+) {
+  const walletAddress = getAddress(row)
+  const tokenId = getOptionalString(row.asset) ?? fallbackTokenId
+
+  if (walletAddress === null || tokenId === null) {
+    return []
+  }
+
+  return [
+    {
+      currentValue: getOptionalNumber(row.currentValue) ?? undefined,
+      size: getOptionalNumber(row.amount) ?? getNumericValue(row.size),
+      tokenId,
+      walletAddress,
+    },
+  ]
 }
 
 function buildEventStats(trades: RawRow[]) {
@@ -406,23 +431,25 @@ function getDateValue(value: unknown) {
   }
 
   if (typeof value === 'number') {
-    return new Date(value < 1_000_000_000_000 ? value * 1000 : value)
+    const date = new Date(value < 1_000_000_000_000 ? value * 1000 : value)
+    return Number.isNaN(date.getTime()) ? null : date
   }
 
   if (typeof value === 'string' && value.length > 0) {
     const parsedNumber = Number(value)
 
     if (Number.isFinite(parsedNumber)) {
-      return new Date(
+      const date = new Date(
         parsedNumber < 1_000_000_000_000
           ? parsedNumber * 1000
           : parsedNumber,
       )
+      return Number.isNaN(date.getTime()) ? null : date
     }
 
     const parsedDate = Date.parse(value)
-    return new Date(Number.isNaN(parsedDate) ? Date.now() : parsedDate)
+    return Number.isNaN(parsedDate) ? null : new Date(parsedDate)
   }
 
-  return new Date()
+  return null
 }

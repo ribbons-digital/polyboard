@@ -155,7 +155,8 @@ export const walletPositionsClosed = pgTable('wallet_positions_closed', {
 })
 
 export const walletTrades = pgTable('wallet_trades', {
-  transactionHash: text('transaction_hash').primaryKey(),
+  id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  transactionHash: text('transaction_hash').notNull(),
   walletAddress: text('wallet_address')
     .notNull()
     .references(() => wallets.address, { onDelete: 'cascade' }),
