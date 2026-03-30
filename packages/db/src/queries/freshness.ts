@@ -49,7 +49,10 @@ export async function startJobRun(db: DbClient, jobName: string) {
 }
 
 export async function getDashboardUsability(db: DbClient) {
-  const freshness = await db.select().from(dataFreshness)
+  const [freshnessRow] = await db
+    .select({ sourceKey: dataFreshness.sourceKey })
+    .from(dataFreshness)
+    .limit(1)
   const [marketScore] = await db
     .select({ marketId: marketScores.marketId })
     .from(marketScores)
@@ -60,7 +63,7 @@ export async function getDashboardUsability(db: DbClient) {
     .limit(1)
 
   return {
-    hasFreshnessRows: freshness.length > 0,
+    hasFreshnessRows: freshnessRow !== undefined,
     hasMarketScores: marketScore !== undefined,
     hasWalletScores: walletScore !== undefined,
   }

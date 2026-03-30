@@ -239,17 +239,37 @@ export async function listTrackedTokens(db: DbClient) {
 }
 
 export async function listSignalInputs(db: DbClient) {
+  const snapshotScores = db
+    .select({
+      marketId: marketSnapshots.marketId,
+      marketStructureScore: sql<number>`avg(${marketSnapshots.lastPrice})::float`,
+      timingScore: sql<number>`avg(${marketSnapshots.spreadBps})::float`,
+    })
+    .from(marketSnapshots)
+    .groupBy(marketSnapshots.marketId)
+    .as('snapshot_scores')
+
+  const holderScores = db
+    .select({
+      marketId: marketHolders.marketId,
+      totalCurrentValue: sql<number>`sum(${marketHolders.currentValue})::float`,
+    })
+    .from(marketHolders)
+    .groupBy(marketHolders.marketId)
+    .as('holder_scores')
+
   return db
     .select({
       marketId: markets.id,
-      marketStructureScore: sql<number>`coalesce(avg(${marketSnapshots.lastPrice})::float, 0.5)`,
-      smartMoneyScore: sql<number>`coalesce(sum(${marketHolders.currentValue})::float / nullif(${markets.volume}::float, 0), 0)`,
-      timingScore: sql<number>`coalesce(avg(${marketSnapshots.spreadBps})::float, 0)`,
+      marketStructureScore:
+        sql<number>`coalesce(${snapshotScores.marketStructureScore}, 0.5)`,
+      smartMoneyScore:
+        sql<number>`coalesce(${holderScores.totalCurrentValue} / nullif(${markets.volume}::float, 0), 0)`,
+      timingScore: sql<number>`coalesce(${snapshotScores.timingScore}, 0)`,
     })
     .from(markets)
-    .leftJoin(marketSnapshots, eq(marketSnapshots.marketId, markets.id))
-    .leftJoin(marketHolders, eq(marketHolders.marketId, markets.id))
-    .groupBy(markets.id, markets.volume)
+    .leftJoin(snapshotScores, eq(snapshotScores.marketId, markets.id))
+    .leftJoin(holderScores, eq(holderScores.marketId, markets.id))
 }
 
 export interface UpsertMarketScoreInput {

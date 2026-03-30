@@ -30,6 +30,14 @@ describe('shouldRunFallbackSeed', () => {
 
 describe('bootstrapWorkerData', () => {
   it('uses runtime helpers to decide whether dashboard data is usable', async () => {
+    const fetchMock = vi.fn(async () => ({
+      json: async () => [],
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
     const { createRuntime } = await import('./runtime')
     const runtime = createRuntime({
       DATABASE_URL: 'postgres://polyboard:polyboard@localhost:5432/polyboard',
@@ -40,6 +48,15 @@ describe('bootstrapWorkerData', () => {
     expect(runtime.repos.marketRepo.listSignalInputs).toBeTypeOf('function')
     expect(runtime.repos.marketRepo.upsertScore).toBeTypeOf('function')
     expect(runtime.repos.freshnessRepo.getDashboardUsability).toBeTypeOf('function')
+
+    await runtime.dataClient.getLeaderboard()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://data-api.polymarket.com/v1/leaderboard',
+      undefined,
+    )
+
+    vi.unstubAllGlobals()
   })
 
   it('returns live and marks live when live bootstrap succeeds', async () => {
