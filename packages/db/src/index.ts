@@ -1,4 +1,6 @@
 export * from './client'
 export * from './env'
 export * from './schema'
+export * from './queries/freshness'
+export * from './queries/markets'
 export * from './queries/settings'
