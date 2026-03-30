@@ -16,6 +16,9 @@ const OptionalUrlString = z
   })
 
 const WorkerEnvSchema = z.object({
+  POLYBOARD_DATA_URL: OptionalUrlString.default(
+    'https://data-api.polymarket.com',
+  ),
   POLYBOARD_WS_URL: OptionalUrlString.default(
     'wss://ws-subscriptions-clob.polymarket.com/ws/market',
   ),
@@ -28,6 +31,7 @@ export interface WorkerEnv {
   databaseUrl: string
   minMarketVolume: number
   backfillBatchSize: number
+  dataUrl: string
   gammaUrl: string
   wsUrl: string
 }
@@ -40,6 +44,7 @@ export function parseWorkerEnv(input: Record<string, string | undefined>): Worke
     databaseUrl: database.databaseUrl,
     minMarketVolume: database.minMarketVolume,
     backfillBatchSize: database.backfillBatchSize,
+    dataUrl: worker.POLYBOARD_DATA_URL,
     gammaUrl: worker.POLYBOARD_GAMMA_URL,
     wsUrl: worker.POLYBOARD_WS_URL,
   }

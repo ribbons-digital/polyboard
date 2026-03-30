@@ -1,7 +1,8 @@
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { createDb } from '../client'
 import {
   marketHolders,
+  marketScores,
   marketSnapshots,
   marketTags,
   markets,
@@ -235,6 +236,58 @@ export async function listTrackedTokens(db: DbClient) {
     .where(and(eq(markets.active, true), eq(tokens.active, true)))
 
   return filterTrackedTokens(rows)
+}
+
+export async function listSignalInputs(db: DbClient) {
+  return db
+    .select({
+      marketId: markets.id,
+      marketStructureScore: sql<number>`coalesce(avg(${marketSnapshots.lastPrice})::float, 0.5)`,
+      smartMoneyScore: sql<number>`coalesce(sum(${marketHolders.currentValue})::float / nullif(${markets.volume}::float, 0), 0)`,
+      timingScore: sql<number>`coalesce(avg(${marketSnapshots.spreadBps})::float, 0)`,
+    })
+    .from(markets)
+    .leftJoin(marketSnapshots, eq(marketSnapshots.marketId, markets.id))
+    .leftJoin(marketHolders, eq(marketHolders.marketId, markets.id))
+    .groupBy(markets.id, markets.volume)
+}
+
+export interface UpsertMarketScoreInput {
+  marketId: string
+  marketStructureScore: number
+  smartMoneyScore: number
+  timingScore: number
+  edgeScore: number
+  reasons: Array<{ label: string; value: number }>
+}
+
+export async function upsertMarketScore(
+  db: DbClient,
+  input: UpsertMarketScoreInput,
+) {
+  const calculatedAt = new Date()
+
+  await db
+    .insert(marketScores)
+    .values({
+      ...input,
+      marketStructureScore: String(input.marketStructureScore),
+      smartMoneyScore: String(input.smartMoneyScore),
+      timingScore: String(input.timingScore),
+      edgeScore: String(input.edgeScore),
+      calculatedAt,
+    })
+    .onConflictDoUpdate({
+      target: marketScores.marketId,
+      set: {
+        marketStructureScore: String(input.marketStructureScore),
+        smartMoneyScore: String(input.smartMoneyScore),
+        timingScore: String(input.timingScore),
+        edgeScore: String(input.edgeScore),
+        reasons: input.reasons,
+        calculatedAt,
+      },
+    })
 }
 
 export interface MarketHolderInput {

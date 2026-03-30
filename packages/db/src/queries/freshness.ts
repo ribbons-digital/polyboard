@@ -1,5 +1,10 @@
 import { createDb } from '../client'
-import { dataFreshness, jobRuns } from '../schema'
+import {
+  dataFreshness,
+  jobRuns,
+  marketScores,
+  walletScores,
+} from '../schema'
 
 type DbClient = ReturnType<typeof createDb>
 
@@ -41,4 +46,22 @@ export async function startJobRun(db: DbClient, jobName: string) {
     .returning()
 
   return row.id
+}
+
+export async function getDashboardUsability(db: DbClient) {
+  const freshness = await db.select().from(dataFreshness)
+  const [marketScore] = await db
+    .select({ marketId: marketScores.marketId })
+    .from(marketScores)
+    .limit(1)
+  const [walletScore] = await db
+    .select({ walletAddress: walletScores.walletAddress })
+    .from(walletScores)
+    .limit(1)
+
+  return {
+    hasFreshnessRows: freshness.length > 0,
+    hasMarketScores: marketScore !== undefined,
+    hasWalletScores: walletScore !== undefined,
+  }
 }
