@@ -65,7 +65,7 @@ describe('createMarketSocketLoop', () => {
 
     await loop.start()
     expect(marketSocket.connectCalls).toEqual([['yes']])
-    expect(updateFreshness).toHaveBeenCalledWith('ws:markets', 'live', 'live')
+    expect(updateFreshness).not.toHaveBeenCalled()
 
     marketSocket.emit('close')
     await vi.advanceTimersByTimeAsync(RECONNECT_DELAY_MS)

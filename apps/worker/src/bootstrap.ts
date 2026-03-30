@@ -160,6 +160,19 @@ export async function bootstrapWorkerData(deps: {
   }
 
   try {
+    const state = await deps.checkUsableData()
+
+    if (
+      !state.hasFreshnessRows ||
+      !state.hasMarketScores ||
+      !state.hasWalletScores
+    ) {
+      return await handleLiveBootstrapFailure(
+        deps,
+        new Error('live bootstrap completed without usable dashboard data'),
+      )
+    }
+
     await deps.markFreshness('live')
     return 'live'
   } catch (error) {

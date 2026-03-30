@@ -431,9 +431,11 @@ describe('bootstrapWorkerData', () => {
 
     await expect(
       bootstrapWorkerData({
-        checkUsableData: async () => {
-          throw new Error('should not be called')
-        },
+        checkUsableData: vi.fn(async () => ({
+          hasFreshnessRows: true,
+          hasMarketScores: true,
+          hasWalletScores: true,
+        })),
         markCoreFreshness: vi.fn(async () => undefined),
         markFreshness,
         runFallbackSeed: seedFallback,
@@ -442,6 +444,59 @@ describe('bootstrapWorkerData', () => {
     ).resolves.toBe('live')
 
     expect(runLiveBootstrap).toHaveBeenCalledTimes(1)
+    expect(seedFallback).not.toHaveBeenCalled()
+    expect(markFreshness).toHaveBeenCalledTimes(1)
+    expect(markFreshness).toHaveBeenCalledWith('live')
+  })
+
+  it('returns fallback when live bootstrap completes without usable dashboard data', async () => {
+    const markFreshness = vi.fn(async () => undefined)
+    const markCoreFreshness = vi.fn(async () => undefined)
+    const seedFallback = vi.fn(async () => undefined)
+
+    await expect(
+      bootstrapWorkerData({
+        checkUsableData: vi.fn(async () => ({
+          hasFreshnessRows: false,
+          hasMarketScores: false,
+          hasWalletScores: false,
+        })),
+        markCoreFreshness,
+        markFreshness,
+        runFallbackSeed: seedFallback,
+        runLiveBootstrap: vi.fn(async () => undefined),
+      }),
+    ).resolves.toBe('fallback')
+
+    expect(markFreshness).toHaveBeenCalledTimes(1)
+    expect(markFreshness).toHaveBeenCalledWith('fallback')
+    expect(markCoreFreshness).toHaveBeenCalledTimes(1)
+    expect(markCoreFreshness).toHaveBeenCalledWith('fallback')
+    expect(seedFallback).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns live only after confirming the dashboard is usable', async () => {
+    const markFreshness = vi.fn(async () => undefined)
+    const seedFallback = vi.fn(async () => undefined)
+    const runLiveBootstrap = vi.fn(async () => undefined)
+    const checkUsableData = vi.fn(async () => ({
+      hasFreshnessRows: true,
+      hasMarketScores: true,
+      hasWalletScores: true,
+    }))
+
+    await expect(
+      bootstrapWorkerData({
+        checkUsableData,
+        markCoreFreshness: vi.fn(async () => undefined),
+        markFreshness,
+        runFallbackSeed: seedFallback,
+        runLiveBootstrap,
+      }),
+    ).resolves.toBe('live')
+
+    expect(runLiveBootstrap).toHaveBeenCalledTimes(1)
+    expect(checkUsableData).toHaveBeenCalledTimes(1)
     expect(markFreshness).toHaveBeenCalledTimes(1)
     expect(markFreshness).toHaveBeenCalledWith('live')
     expect(seedFallback).not.toHaveBeenCalled()
@@ -551,9 +606,11 @@ describe('bootstrapWorkerData', () => {
 
     await expect(
       bootstrapWorkerData({
-        checkUsableData: async () => {
-          throw new Error('should not be called')
-        },
+        checkUsableData: async () => ({
+          hasFreshnessRows: true,
+          hasMarketScores: true,
+          hasWalletScores: true,
+        }),
         markCoreFreshness,
         markFreshness,
         runFallbackSeed: seedFallback,

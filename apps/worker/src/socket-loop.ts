@@ -130,7 +130,6 @@ export function createMarketSocketLoop(deps: {
 
       deps.marketSocket.connect([...nextLookup.keys()])
       tokenLookup = nextLookup
-      await markWebsocketFreshnessSafely('live', 'live')
     } catch (error) {
       await markWebsocketFreshnessSafely('degraded', 'degraded')
       deps.logger.error({ err: error }, 'failed to start market socket')
