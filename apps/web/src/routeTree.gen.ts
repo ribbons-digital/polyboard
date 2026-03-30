@@ -9,18 +9,36 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as WalletsIndexRouteImport } from './routes/wallets/index'
 import { Route as MarketsIndexRouteImport } from './routes/markets/index'
+import { Route as WalletsWalletIdRouteImport } from './routes/wallets/$walletId'
 import { Route as MarketsMarketIdRouteImport } from './routes/markets/$marketId'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WalletsIndexRoute = WalletsIndexRouteImport.update({
+  id: '/wallets/',
+  path: '/wallets/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarketsIndexRoute = MarketsIndexRouteImport.update({
   id: '/markets/',
   path: '/markets/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WalletsWalletIdRoute = WalletsWalletIdRouteImport.update({
+  id: '/wallets/$walletId',
+  path: '/wallets/$walletId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MarketsMarketIdRoute = MarketsMarketIdRouteImport.update({
@@ -31,36 +49,74 @@ const MarketsMarketIdRoute = MarketsMarketIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/settings': typeof SettingsRoute
   '/markets/$marketId': typeof MarketsMarketIdRoute
+  '/wallets/$walletId': typeof WalletsWalletIdRoute
   '/markets/': typeof MarketsIndexRoute
+  '/wallets/': typeof WalletsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/settings': typeof SettingsRoute
   '/markets/$marketId': typeof MarketsMarketIdRoute
+  '/wallets/$walletId': typeof WalletsWalletIdRoute
   '/markets': typeof MarketsIndexRoute
+  '/wallets': typeof WalletsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/settings': typeof SettingsRoute
   '/markets/$marketId': typeof MarketsMarketIdRoute
+  '/wallets/$walletId': typeof WalletsWalletIdRoute
   '/markets/': typeof MarketsIndexRoute
+  '/wallets/': typeof WalletsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/markets/$marketId' | '/markets/'
+  fullPaths:
+    | '/'
+    | '/settings'
+    | '/markets/$marketId'
+    | '/wallets/$walletId'
+    | '/markets/'
+    | '/wallets/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/markets/$marketId' | '/markets'
-  id: '__root__' | '/' | '/markets/$marketId' | '/markets/'
+  to:
+    | '/'
+    | '/settings'
+    | '/markets/$marketId'
+    | '/wallets/$walletId'
+    | '/markets'
+    | '/wallets'
+  id:
+    | '__root__'
+    | '/'
+    | '/settings'
+    | '/markets/$marketId'
+    | '/wallets/$walletId'
+    | '/markets/'
+    | '/wallets/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SettingsRoute: typeof SettingsRoute
   MarketsMarketIdRoute: typeof MarketsMarketIdRoute
+  WalletsWalletIdRoute: typeof WalletsWalletIdRoute
   MarketsIndexRoute: typeof MarketsIndexRoute
+  WalletsIndexRoute: typeof WalletsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -68,11 +124,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/wallets/': {
+      id: '/wallets/'
+      path: '/wallets'
+      fullPath: '/wallets/'
+      preLoaderRoute: typeof WalletsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/markets/': {
       id: '/markets/'
       path: '/markets'
       fullPath: '/markets/'
       preLoaderRoute: typeof MarketsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/wallets/$walletId': {
+      id: '/wallets/$walletId'
+      path: '/wallets/$walletId'
+      fullPath: '/wallets/$walletId'
+      preLoaderRoute: typeof WalletsWalletIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/markets/$marketId': {
@@ -87,8 +157,11 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SettingsRoute: SettingsRoute,
   MarketsMarketIdRoute: MarketsMarketIdRoute,
+  WalletsWalletIdRoute: WalletsWalletIdRoute,
   MarketsIndexRoute: MarketsIndexRoute,
+  WalletsIndexRoute: WalletsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
