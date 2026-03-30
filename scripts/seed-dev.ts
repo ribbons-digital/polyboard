@@ -17,8 +17,9 @@ import {
   wallets,
 } from '@polyboard/db'
 import { eq, inArray } from 'drizzle-orm'
+import { pathToFileURL } from 'node:url'
 
-async function seed() {
+export async function seedDevelopmentData() {
   const db = createDb()
   const now = new Date('2026-03-30T12:00:00Z')
   try {
@@ -317,7 +318,9 @@ async function seed() {
   }
 }
 
-seed().catch((error) => {
-  console.error(error)
-  process.exit(1)
-})
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  seedDevelopmentData().catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })
+}
