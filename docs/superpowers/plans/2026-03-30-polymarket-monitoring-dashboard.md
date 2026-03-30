@@ -500,6 +500,8 @@ export const Route = createRootRouteWithContext<{ queryClient: typeof queryClien
 })
 
 function RootComponent() {
+  const showDevtools = import.meta.env.DEV
+
   return (
     <RootDocument>
       <QueryClientProvider client={queryClient}>
@@ -520,8 +522,10 @@ function RootComponent() {
             <Outlet />
           </main>
         </div>
-        <ReactQueryDevtools initialIsOpen={false} />
-        <TanStackRouterDevtools position="bottom-right" />
+        {showDevtools ? <ReactQueryDevtools initialIsOpen={false} /> : null}
+        {showDevtools ? (
+          <TanStackRouterDevtools position="bottom-right" />
+        ) : null}
       </QueryClientProvider>
     </RootDocument>
   )
