@@ -314,7 +314,7 @@ export async function seedDevelopmentData() {
       ])
       .onConflictDoNothing()
   } finally {
-    await db.session.client.end()
+    await db.$client.end()
   }
 }
 

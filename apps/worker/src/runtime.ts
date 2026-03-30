@@ -1,10 +1,13 @@
 import {
   createDb,
+  ensureSettingsRow,
   getDashboardUsability,
   insertMarketSnapshot,
+  listMarketIdsByConditionIds,
   listSignalInputs,
   listTrackedTokens,
   replaceClosedPositions,
+  replaceMarketHolders,
   replaceOpenPositions,
   replaceTrades,
   replaceWalletEventStats,
@@ -17,6 +20,7 @@ import {
 } from '@polyboard/db'
 import { DataClient, GammaClient, MarketSocket } from '@polyboard/polymarket'
 import pino from 'pino'
+import { seedDevelopmentData } from '../../../scripts/seed-dev'
 import { parseWorkerEnv } from './config'
 
 export function createRuntime(env: Record<string, string | undefined> = process.env) {
@@ -34,6 +38,7 @@ export function createRuntime(env: Record<string, string | undefined> = process.
     gammaClient,
     logger,
     marketSocket,
+    seedFallback: seedDevelopmentData,
     repos: {
       freshnessRepo: {
         getDashboardUsability: () => getDashboardUsability(db),
@@ -49,10 +54,16 @@ export function createRuntime(env: Record<string, string | undefined> = process.
         ) => insertMarketSnapshot(db, input),
         listTrackedTokens: () => listTrackedTokens(db),
         listSignalInputs: () => listSignalInputs(db),
+        listMarketIdsByConditionIds: (conditionIds: string[]) =>
+          listMarketIdsByConditionIds(db, conditionIds),
         replaceTags: (
           marketId: string,
           tags: Parameters<typeof replaceTags>[2],
         ) => replaceTags(db, marketId, tags),
+        replaceMarketHolders: (
+          marketId: string,
+          rows: Parameters<typeof replaceMarketHolders>[2],
+        ) => replaceMarketHolders(db, marketId, rows),
         upsertScore: (input: Parameters<typeof upsertMarketScore>[1]) =>
           upsertMarketScore(db, input),
         upsertMarkets: (rows: Parameters<typeof upsertMarkets>[1]) =>
@@ -81,6 +92,9 @@ export function createRuntime(env: Record<string, string | undefined> = process.
         upsertWalletScore: (input: Parameters<typeof upsertWalletScore>[1]) =>
           upsertWalletScore(db, input),
       },
+    },
+    settingsRepo: {
+      getSettings: () => ensureSettingsRow(db),
     },
   }
 }

@@ -1,3 +1,48 @@
+import {
+  recomputeMarketScores,
+  type RecomputeMarketScoresDeps,
+} from './jobs/analytics'
+import { runBackfillOnce, type BackfillDeps } from './jobs/backfill'
+import { runDiscoveryOnce, type DiscoveryDeps } from './jobs/discovery'
+
+type DashboardUsability = {
+  hasFreshnessRows: boolean
+  hasMarketScores: boolean
+  hasWalletScores: boolean
+}
+
+export interface WorkerBootstrapRuntime {
+  dataClient: BackfillDeps['dataClient']
+  env: {
+    minMarketVolume: number
+  }
+  gammaClient: DiscoveryDeps['gammaClient']
+  repos: {
+    freshnessRepo: {
+      getDashboardUsability: () => Promise<DashboardUsability>
+      updateFreshness: (
+        sourceKey: string,
+        status: string,
+        completeness?: string,
+      ) => Promise<void>
+    }
+    marketRepo: DiscoveryDeps['marketRepo'] &
+      BackfillDeps['marketRepo'] &
+      RecomputeMarketScoresDeps['marketRepo']
+    walletRepo: BackfillDeps['walletRepo']
+  }
+  seedFallback: () => Promise<void>
+  settingsRepo: {
+    getSettings: () => Promise<RecomputeMarketScoresDeps['settings']>
+  }
+}
+
+interface LiveBootstrapJobDeps {
+  recomputeMarketScores?: typeof recomputeMarketScores
+  runBackfillOnce?: typeof runBackfillOnce
+  runDiscoveryOnce?: typeof runDiscoveryOnce
+}
+
 export function shouldRunFallbackSeed(input: {
   bootstrapFailed: boolean
   hasFreshnessRows: boolean
@@ -6,8 +51,39 @@ export function shouldRunFallbackSeed(input: {
 }) {
   return (
     input.bootstrapFailed &&
-    (!input.hasFreshnessRows || !input.hasMarketScores || !input.hasWalletScores)
+    (!input.hasFreshnessRows ||
+      !input.hasMarketScores ||
+      !input.hasWalletScores)
   )
+}
+
+export function createLiveBootstrapRunner(
+  runtime: WorkerBootstrapRuntime,
+  deps: LiveBootstrapJobDeps = {},
+) {
+  const runDiscovery = deps.runDiscoveryOnce ?? runDiscoveryOnce
+  const runBackfill = deps.runBackfillOnce ?? runBackfillOnce
+  const recompute = deps.recomputeMarketScores ?? recomputeMarketScores
+
+  return async () => {
+    await runDiscovery({
+      freshnessRepo: runtime.repos.freshnessRepo,
+      gammaClient: runtime.gammaClient,
+      marketRepo: runtime.repos.marketRepo,
+      minVolume: runtime.env.minMarketVolume,
+    })
+
+    await runBackfill({
+      dataClient: runtime.dataClient,
+      marketRepo: runtime.repos.marketRepo,
+      walletRepo: runtime.repos.walletRepo,
+    })
+
+    await recompute({
+      marketRepo: runtime.repos.marketRepo,
+      settings: await runtime.settingsRepo.getSettings(),
+    })
+  }
 }
 
 function toError(error: unknown) {
@@ -16,21 +92,13 @@ function toError(error: unknown) {
 
 async function handleLiveBootstrapFailure(
   deps: {
-    checkUsableData: () => Promise<{
-      hasFreshnessRows: boolean
-      hasMarketScores: boolean
-      hasWalletScores: boolean
-    }>
+    checkUsableData: () => Promise<DashboardUsability>
     runFallbackSeed: () => Promise<void>
     markFreshness: (status: 'live' | 'fallback' | 'degraded') => Promise<void>
   },
   bootstrapError: unknown,
 ) {
-  let state: {
-    hasFreshnessRows: boolean
-    hasMarketScores: boolean
-    hasWalletScores: boolean
-  }
+  let state: DashboardUsability
 
   try {
     state = await deps.checkUsableData()
@@ -60,11 +128,7 @@ async function handleLiveBootstrapFailure(
 
 export async function bootstrapWorkerData(deps: {
   runLiveBootstrap: () => Promise<void>
-  checkUsableData: () => Promise<{
-    hasFreshnessRows: boolean
-    hasMarketScores: boolean
-    hasWalletScores: boolean
-  }>
+  checkUsableData: () => Promise<DashboardUsability>
   runFallbackSeed: () => Promise<void>
   markFreshness: (status: 'live' | 'fallback' | 'degraded') => Promise<void>
 }) {
@@ -82,4 +146,31 @@ export async function bootstrapWorkerData(deps: {
       cause: error,
     })
   }
+}
+
+export async function runWorkerBootstrap(
+  runtime: Pick<WorkerBootstrapRuntime, 'repos' | 'seedFallback'> &
+    Partial<
+      Pick<
+        WorkerBootstrapRuntime,
+        'dataClient' | 'env' | 'gammaClient' | 'settingsRepo'
+      >
+    >,
+  deps: { runLiveBootstrap?: () => Promise<void> } & LiveBootstrapJobDeps = {},
+) {
+  const runLiveBootstrap =
+    deps.runLiveBootstrap ??
+    createLiveBootstrapRunner(runtime as WorkerBootstrapRuntime, deps)
+
+  return bootstrapWorkerData({
+    checkUsableData: runtime.repos.freshnessRepo.getDashboardUsability,
+    markFreshness: (status) =>
+      runtime.repos.freshnessRepo.updateFreshness(
+        'worker:bootstrap',
+        status,
+        status === 'live' ? 'live' : 'fallback',
+      ),
+    runFallbackSeed: runtime.seedFallback,
+    runLiveBootstrap,
+  })
 }

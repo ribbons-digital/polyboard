@@ -1,27 +1,50 @@
-import { runDiscoveryOnce } from './jobs/discovery'
+import { pathToFileURL } from 'node:url'
+import { runWorkerBootstrap } from './bootstrap'
 import { createRuntime } from './runtime'
+import { startRuntimeRefreshScheduler } from './scheduler'
 import { createMarketSocketLoop } from './socket-loop'
 
-async function main() {
-  const runtime = createRuntime()
+type Runtime = ReturnType<typeof createRuntime>
+type RefreshScheduler = ReturnType<typeof startRuntimeRefreshScheduler>
 
-  await runDiscoveryOnce({
-    minVolume: runtime.env.minMarketVolume,
-    gammaClient: runtime.gammaClient,
-    marketRepo: runtime.repos.marketRepo,
-    freshnessRepo: runtime.repos.freshnessRepo,
+export async function startWorker(
+  deps: {
+    createRuntime?: () => Runtime
+    createSocketLoop?: typeof createMarketSocketLoop
+    runLiveBootstrap?: () => Promise<void>
+    startRefreshScheduler?: (runtime: Runtime) => RefreshScheduler
+  } = {},
+) {
+  const runtime = deps.createRuntime?.() ?? createRuntime()
+
+  const bootstrapStatus = await runWorkerBootstrap(runtime, {
+    runLiveBootstrap: deps.runLiveBootstrap,
   })
 
-  const marketSocketLoop = createMarketSocketLoop({
+  const refreshScheduler =
+    deps.startRefreshScheduler?.(runtime) ?? startRuntimeRefreshScheduler(runtime)
+
+  const marketSocketLoop = (deps.createSocketLoop ?? createMarketSocketLoop)({
     logger: runtime.logger,
     marketRepo: runtime.repos.marketRepo,
     marketSocket: runtime.marketSocket,
   })
 
   await marketSocketLoop.start()
+
+  return {
+    bootstrapStatus,
+    marketSocketLoop,
+    refreshScheduler,
+  }
 }
 
-main().catch((error) => {
-  console.error(error)
-  process.exit(1)
-})
+if (
+  process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  startWorker().catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })
+}

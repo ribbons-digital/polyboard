@@ -1,8 +1,22 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   bootstrapWorkerData,
+  createLiveBootstrapRunner,
+  runWorkerBootstrap,
   shouldRunFallbackSeed,
 } from './bootstrap'
+
+afterEach(() => {
+  vi.resetModules()
+  vi.doUnmock('./bootstrap')
+  vi.doUnmock('./jobs/analytics')
+  vi.doUnmock('./jobs/backfill')
+  vi.doUnmock('./jobs/discovery')
+  vi.doUnmock('./runtime')
+  vi.doUnmock('./scheduler')
+  vi.doUnmock('./socket-loop')
+  vi.unstubAllGlobals()
+})
 
 describe('shouldRunFallbackSeed', () => {
   it('returns true when bootstrap failed and the dashboard tables are unusable', () => {
@@ -29,6 +43,212 @@ describe('shouldRunFallbackSeed', () => {
 })
 
 describe('bootstrapWorkerData', () => {
+  it('builds the live bootstrap sequence from runtime discovery, backfill, and recompute helpers', async () => {
+    const runtime = {
+      dataClient: {
+        getClosedPositions: vi.fn(),
+        getHolders: vi.fn(),
+        getLeaderboard: vi.fn(),
+        getPositions: vi.fn(),
+        getTrades: vi.fn(),
+        getValue: vi.fn(),
+      },
+      env: { minMarketVolume: 50_000 },
+      gammaClient: { getMarketTags: vi.fn(), listMarkets: vi.fn() },
+      repos: {
+        freshnessRepo: {
+          getDashboardUsability: vi.fn(async () => ({
+            hasFreshnessRows: true,
+            hasMarketScores: true,
+            hasWalletScores: true,
+          })),
+          updateFreshness: vi.fn(async () => undefined),
+        },
+        marketRepo: {
+          listMarketIdsByConditionIds: vi.fn(),
+          listSignalInputs: vi.fn(),
+          replaceMarketHolders: vi.fn(),
+          replaceTags: vi.fn(),
+          upsertMarkets: vi.fn(),
+          upsertScore: vi.fn(),
+        },
+        walletRepo: {
+          replaceClosedPositions: vi.fn(),
+          replaceOpenPositions: vi.fn(),
+          replaceTrades: vi.fn(),
+          replaceWalletEventStats: vi.fn(),
+          upsertWalletProfiles: vi.fn(),
+          upsertWalletScore: vi.fn(),
+        },
+      },
+      seedFallback: vi.fn(async () => undefined),
+      settingsRepo: {
+        getSettings: vi.fn(async () => ({
+          scoreWeights: { marketStructure: 0.35, smartMoney: 0.45, timing: 0.2 },
+        })),
+      },
+    }
+    const runDiscoveryOnce = vi.fn(async () => [])
+    const runBackfillOnce = vi.fn(async () => undefined)
+    const recomputeMarketScores = vi.fn(async () => undefined)
+
+    await createLiveBootstrapRunner(runtime, {
+      recomputeMarketScores,
+      runBackfillOnce,
+      runDiscoveryOnce,
+    })()
+
+    expect(runDiscoveryOnce).toHaveBeenCalledWith({
+      freshnessRepo: runtime.repos.freshnessRepo,
+      gammaClient: runtime.gammaClient,
+      marketRepo: runtime.repos.marketRepo,
+      minVolume: runtime.env.minMarketVolume,
+    })
+    expect(runBackfillOnce).toHaveBeenCalledWith({
+      dataClient: runtime.dataClient,
+      marketRepo: runtime.repos.marketRepo,
+      walletRepo: runtime.repos.walletRepo,
+    })
+    expect(runtime.settingsRepo.getSettings).toHaveBeenCalledTimes(1)
+    expect(recomputeMarketScores).toHaveBeenCalledWith({
+      marketRepo: runtime.repos.marketRepo,
+      settings: {
+        scoreWeights: { marketStructure: 0.35, smartMoney: 0.45, timing: 0.2 },
+      },
+    })
+  })
+
+  it('runs live bootstrap before starting the websocket loop', async () => {
+    vi.resetModules()
+
+    const startSocket = vi.fn(async () => undefined)
+    const runLiveBootstrap = vi.fn(async () => undefined)
+    const runDiscoveryOnce = vi.fn(async () => undefined)
+    const runBackfillOnce = vi.fn(async () => undefined)
+    const recomputeMarketScores = vi.fn(async () => undefined)
+
+    vi.doMock('./runtime', () => ({
+      createRuntime: () => ({
+        dataClient: {},
+        db: {},
+        env: {
+          discoveryIntervalMs: 1_000,
+          minMarketVolume: 50_000,
+          scoreRefreshIntervalMs: 1_500,
+          walletRefreshIntervalMs: 2_000,
+        },
+        gammaClient: {},
+        logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+        marketSocket: {},
+        repos: {
+          freshnessRepo: {
+            getDashboardUsability: vi.fn(async () => ({
+              hasFreshnessRows: true,
+              hasMarketScores: true,
+              hasWalletScores: true,
+            })),
+            updateFreshness: vi.fn(async () => undefined),
+          },
+          marketRepo: {},
+          walletRepo: {},
+        },
+        seedFallback: vi.fn(async () => undefined),
+        settingsRepo: {
+          getSettings: vi.fn(async () => ({ scoreWeights: {} })),
+        },
+      }),
+    }))
+    vi.doMock('./bootstrap', () => ({
+      createLiveBootstrapRunner: vi.fn(() => runLiveBootstrap),
+      runWorkerBootstrap: vi.fn(async () => {
+        await runLiveBootstrap()
+        return 'live'
+      }),
+      bootstrapWorkerData: vi.fn(async () => 'live'),
+      shouldRunFallbackSeed: vi.fn(),
+    }))
+    vi.doMock('./socket-loop', () => ({
+      createMarketSocketLoop: () => ({ start: startSocket, stop: vi.fn() }),
+    }))
+    vi.doMock('./scheduler', () => ({
+      startRuntimeRefreshScheduler: vi.fn(() => ({ stop: vi.fn() })),
+    }))
+    vi.doMock('./jobs/discovery', () => ({
+      runDiscoveryOnce,
+    }))
+    vi.doMock('./jobs/backfill', () => ({
+      runBackfillOnce,
+    }))
+    vi.doMock('./jobs/analytics', () => ({
+      recomputeMarketScores,
+    }))
+
+    const workerModule = await import('./index')
+
+    expect(workerModule.startWorker).toBeTypeOf('function')
+
+    if (typeof workerModule.startWorker !== 'function') {
+      return
+    }
+
+    await workerModule.startWorker()
+
+    expect(runLiveBootstrap).toHaveBeenCalledBefore(startSocket)
+  })
+
+  it('uses runtime freshness checks and seed fallback when coordinated bootstrap fails live discovery', async () => {
+    const getDashboardUsability = vi.fn(async () => ({
+      hasFreshnessRows: false,
+      hasMarketScores: false,
+      hasWalletScores: false,
+    }))
+    const updateFreshness = vi.fn(async () => undefined)
+    const seedFallback = vi.fn(async () => undefined)
+
+    await expect(
+      runWorkerBootstrap(
+        {
+          repos: {
+            freshnessRepo: {
+              getDashboardUsability,
+              updateFreshness,
+            },
+            marketRepo: {
+              listMarketIdsByConditionIds: vi.fn(),
+              listSignalInputs: vi.fn(),
+              replaceMarketHolders: vi.fn(),
+              replaceTags: vi.fn(),
+              upsertMarkets: vi.fn(),
+              upsertScore: vi.fn(),
+            },
+            walletRepo: {
+              replaceClosedPositions: vi.fn(),
+              replaceOpenPositions: vi.fn(),
+              replaceTrades: vi.fn(),
+              replaceWalletEventStats: vi.fn(),
+              upsertWalletProfiles: vi.fn(),
+              upsertWalletScore: vi.fn(),
+            },
+          },
+          seedFallback,
+        },
+        {
+          runLiveBootstrap: vi.fn(async () => {
+            throw new Error('gamma unavailable')
+          }),
+        },
+      ),
+    ).resolves.toBe('fallback')
+
+    expect(getDashboardUsability).toHaveBeenCalledTimes(1)
+    expect(seedFallback).toHaveBeenCalledTimes(1)
+    expect(updateFreshness).toHaveBeenCalledWith(
+      'worker:bootstrap',
+      'fallback',
+      'fallback',
+    )
+  })
+
   it('uses runtime helpers to decide whether dashboard data is usable', async () => {
     const fetchMock = vi.fn(async () => ({
       json: async () => [],
