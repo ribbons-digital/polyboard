@@ -42,19 +42,24 @@ export function createMarketSocketLoop(deps: {
   let stopped = false
   let tokenLookup = new Map<string, TrackedTokenRow>()
 
-  const loadTrackedTokens = async () => {
-    const trackedTokens = await deps.marketRepo.listTrackedTokens()
-    const nextLookup = new Map(
-      trackedTokens.map((token) => [token.tokenId, token]),
+  const fetchTrackedTokens = async () =>
+    new Map(
+      (await deps.marketRepo.listTrackedTokens()).map((token) => [
+        token.tokenId,
+        token,
+      ]),
     )
-    const previousTokenIds = [...tokenLookup.keys()]
-    const nextTokenIds = [...nextLookup.keys()]
 
-    tokenLookup = nextLookup
+  const diffTrackedTokens = (
+    previousLookup: Map<string, TrackedTokenRow>,
+    nextLookup: Map<string, TrackedTokenRow>,
+  ) => {
+    const previousTokenIds = [...previousLookup.keys()]
+    const nextTokenIds = [...nextLookup.keys()]
 
     return {
       addedTokenIds: nextTokenIds.filter(
-        (tokenId) => !previousTokenIds.includes(tokenId),
+        (tokenId) => !previousLookup.has(tokenId),
       ),
       removedTokenIds: previousTokenIds.filter(
         (tokenId) => !nextLookup.has(tokenId),
@@ -79,16 +84,17 @@ export function createMarketSocketLoop(deps: {
     }
 
     try {
-      await loadTrackedTokens()
+      const nextLookup = await fetchTrackedTokens()
 
       deps.logger.info(
         {
-          trackedTokenCount: tokenLookup.size,
+          trackedTokenCount: nextLookup.size,
         },
         'starting market socket',
       )
 
-      deps.marketSocket.connect([...tokenLookup.keys()])
+      deps.marketSocket.connect([...nextLookup.keys()])
+      tokenLookup = nextLookup
     } catch (error) {
       deps.logger.error({ err: error }, 'failed to start market socket')
       scheduleReconnect()
@@ -101,7 +107,11 @@ export function createMarketSocketLoop(deps: {
     }
 
     try {
-      const { addedTokenIds, removedTokenIds } = await loadTrackedTokens()
+      const nextLookup = await fetchTrackedTokens()
+      const { addedTokenIds, removedTokenIds } = diffTrackedTokens(
+        tokenLookup,
+        nextLookup,
+      )
 
       if (removedTokenIds.length > 0) {
         deps.marketSocket.unsubscribe(removedTokenIds)
@@ -110,6 +120,8 @@ export function createMarketSocketLoop(deps: {
       if (addedTokenIds.length > 0) {
         deps.marketSocket.subscribe(addedTokenIds)
       }
+
+      tokenLookup = nextLookup
     } catch (error) {
       deps.logger.error(
         { err: error },

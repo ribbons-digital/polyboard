@@ -127,4 +127,40 @@ describe('createMarketSocketLoop', () => {
     expect(marketSocket.unsubscribeCalls).toEqual([])
     expect(marketSocket.disconnectCalls).toBe(0)
   })
+
+  it('retries a failed refresh with the same pending token diff', async () => {
+    const marketSocket = new FakeMarketSocket()
+    const listTrackedTokens = vi
+      .fn<() => Promise<Array<{ marketId: string; tokenId: string }>>>()
+      .mockResolvedValueOnce([{ marketId: 'm1', tokenId: 'yes' }])
+      .mockResolvedValue([
+        { marketId: 'm1', tokenId: 'yes' },
+        { marketId: 'm2', tokenId: 'no' },
+      ])
+    const logger = createLogger()
+    const subscribe = vi
+      .spyOn(marketSocket, 'subscribe')
+      .mockImplementationOnce(() => {
+        throw new Error('socket not open')
+      })
+
+    const loop = createMarketSocketLoop({
+      logger,
+      marketRepo: {
+        insertSnapshot: vi.fn(async () => undefined),
+        listTrackedTokens,
+      },
+      marketSocket,
+    })
+
+    await loop.start()
+    expect(marketSocket.connectCalls).toEqual([['yes']])
+
+    await loop.refreshSubscriptions()
+    await loop.refreshSubscriptions()
+
+    expect(subscribe).toHaveBeenNthCalledWith(1, ['no'])
+    expect(subscribe).toHaveBeenNthCalledWith(2, ['no'])
+    expect(logger.error).toHaveBeenCalledTimes(1)
+  })
 })
