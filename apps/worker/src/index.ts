@@ -39,7 +39,13 @@ export async function startWorker(
       refreshSocketSubscriptions: marketSocketLoop.refreshSubscriptions,
     })
 
-  await marketSocketLoop.start()
+  try {
+    await marketSocketLoop.start()
+  } catch (error) {
+    refreshScheduler.stop()
+    marketSocketLoop.stop()
+    throw error
+  }
 
   return {
     bootstrapStatus,

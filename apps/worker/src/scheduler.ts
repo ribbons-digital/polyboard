@@ -49,6 +49,8 @@ export function startRefreshScheduler(deps: {
   scoreIntervalMs: number
   logger: LoggerLike
 }) {
+  let stopped = false
+
   const createSerializedJobRunner = (
     job: () => Promise<void>,
     message: string,
@@ -62,20 +64,26 @@ export function startRefreshScheduler(deps: {
         return
       }
 
+      if (stopped) {
+        return
+      }
+
       running = true
 
       void (async () => {
-        do {
-          rerunRequested = false
+        try {
+          do {
+            rerunRequested = false
 
-          try {
-            await job()
-          } catch (error) {
-            deps.logger.error({ err: error }, message)
-          }
-        } while (rerunRequested)
-
-        running = false
+            try {
+              await job()
+            } catch (error) {
+              deps.logger.error({ err: error }, message)
+            }
+          } while (rerunRequested && !stopped)
+        } finally {
+          running = false
+        }
       })()
     }
 
@@ -103,6 +111,8 @@ export function startRefreshScheduler(deps: {
 
   return {
     stop: () => {
+      stopped = true
+
       for (const timer of timers) {
         clearInterval(timer)
       }

@@ -123,6 +123,39 @@ describe('startRefreshScheduler', () => {
     scheduler.stop()
   })
 
+  it('does not run a queued rerun after stop is called', async () => {
+    vi.useFakeTimers()
+
+    let resolveDiscovery: () => void = () => undefined
+    const discovery = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDiscovery = resolve
+        }),
+    )
+
+    const scheduler = startRefreshScheduler({
+      runDiscovery: discovery,
+      runWalletBackfill: vi.fn(async () => undefined),
+      runScoreRefresh: vi.fn(async () => undefined),
+      discoveryIntervalMs: 1_000,
+      walletIntervalMs: 2_000,
+      scoreIntervalMs: 1_500,
+      logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+    })
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    expect(discovery).toHaveBeenCalledTimes(1)
+
+    scheduler.stop()
+    resolveDiscovery()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(discovery).toHaveBeenCalledTimes(1)
+  })
+
   it('builds recurring jobs from runtime helpers', async () => {
     vi.useFakeTimers()
 
