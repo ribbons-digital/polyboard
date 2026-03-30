@@ -81,7 +81,6 @@ export interface DashboardUsabilityInput {
 }
 
 export function summarizeDashboardUsability(input: DashboardUsabilityInput) {
-  const now = input.now ?? new Date()
   const freshnessBySource = new Map(
     input.freshnessRows.map((row) => [
       row.sourceKey,
@@ -93,15 +92,9 @@ export function summarizeDashboardUsability(input: DashboardUsabilityInput) {
   )
 
   return {
-    hasFreshnessRows: freshnessCoreSourceKeys.every((sourceKey) => {
-      const row = freshnessBySource.get(sourceKey)
-
-      return (
-        row !== undefined &&
-        row.status === 'live' &&
-        !isFreshnessRowStale(sourceKey, row.asOf, now)
-      )
-    }),
+    hasFreshnessRows: freshnessCoreSourceKeys.every((sourceKey) =>
+      freshnessBySource.has(sourceKey),
+    ),
     hasMarketScores: input.marketScoreRows.length > 0,
     hasWalletScores: input.walletScoreRows.length > 0,
   }
