@@ -8,9 +8,19 @@ import {
 class FakeMarketSocket extends EventEmitter {
   connectCalls: string[][] = []
   disconnectCalls = 0
+  subscribeCalls: string[][] = []
+  unsubscribeCalls: string[][] = []
 
   connect(assetIds: string[]) {
     this.connectCalls.push(assetIds)
+  }
+
+  subscribe(assetIds: string[]) {
+    this.subscribeCalls.push(assetIds)
+  }
+
+  unsubscribe(assetIds: string[]) {
+    this.unsubscribeCalls.push(assetIds)
   }
 
   disconnect() {
@@ -86,5 +96,35 @@ describe('createMarketSocketLoop', () => {
     expect(marketSocket.connectCalls).toEqual([['yes'], ['yes']])
     expect(logger.error).toHaveBeenCalledTimes(1)
     expect(logger.warn).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes live subscriptions without waiting for a reconnect', async () => {
+    const marketSocket = new FakeMarketSocket()
+    const listTrackedTokens = vi
+      .fn<() => Promise<Array<{ marketId: string; tokenId: string }>>>()
+      .mockResolvedValueOnce([{ marketId: 'm1', tokenId: 'yes' }])
+      .mockResolvedValueOnce([
+        { marketId: 'm1', tokenId: 'yes' },
+        { marketId: 'm2', tokenId: 'no' },
+      ])
+
+    const loop = createMarketSocketLoop({
+      logger: createLogger(),
+      marketRepo: {
+        insertSnapshot: vi.fn(async () => undefined),
+        listTrackedTokens,
+      },
+      marketSocket,
+    })
+
+    await loop.start()
+    expect(marketSocket.connectCalls).toEqual([['yes']])
+
+    await loop.refreshSubscriptions()
+
+    expect(marketSocket.connectCalls).toEqual([['yes']])
+    expect(marketSocket.subscribeCalls).toEqual([['no']])
+    expect(marketSocket.unsubscribeCalls).toEqual([])
+    expect(marketSocket.disconnectCalls).toBe(0)
   })
 })

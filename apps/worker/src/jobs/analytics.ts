@@ -12,19 +12,21 @@ export function normalizeScoreWeights(value: unknown) {
       ? (value as Record<string, unknown>)
       : {}
 
+  const normalizeWeight = (input: unknown, fallback: number) =>
+    typeof input === 'number' && Number.isFinite(input) && input >= 0
+      ? input
+      : fallback
+
   return {
-    marketStructure:
-      typeof record.marketStructure === 'number'
-        ? record.marketStructure
-        : defaultScoreWeights.marketStructure,
-    smartMoney:
-      typeof record.smartMoney === 'number'
-        ? record.smartMoney
-        : defaultScoreWeights.smartMoney,
-    timing:
-      typeof record.timing === 'number'
-        ? record.timing
-        : defaultScoreWeights.timing,
+    marketStructure: normalizeWeight(
+      record.marketStructure,
+      defaultScoreWeights.marketStructure,
+    ),
+    smartMoney: normalizeWeight(
+      record.smartMoney,
+      defaultScoreWeights.smartMoney,
+    ),
+    timing: normalizeWeight(record.timing, defaultScoreWeights.timing),
   }
 }
 

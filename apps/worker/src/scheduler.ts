@@ -37,6 +37,7 @@ interface RefreshJobDeps {
   recomputeMarketScores?: typeof recomputeMarketScores
   runBackfillOnce?: typeof runBackfillOnce
   runDiscoveryOnce?: typeof runDiscoveryOnce
+  refreshSocketSubscriptions?: () => Promise<void> | void
 }
 
 export function startRefreshScheduler(deps: {
@@ -48,22 +49,56 @@ export function startRefreshScheduler(deps: {
   scoreIntervalMs: number
   logger: LoggerLike
 }) {
-  const runJob = (job: () => Promise<void>, message: string) => {
-    void job().catch((error) => {
-      deps.logger.error({ err: error }, message)
-    })
+  const createSerializedJobRunner = (
+    job: () => Promise<void>,
+    message: string,
+  ) => {
+    let running = false
+    let rerunRequested = false
+
+    const run = () => {
+      if (running) {
+        rerunRequested = true
+        return
+      }
+
+      running = true
+
+      void (async () => {
+        do {
+          rerunRequested = false
+
+          try {
+            await job()
+          } catch (error) {
+            deps.logger.error({ err: error }, message)
+          }
+        } while (rerunRequested)
+
+        running = false
+      })()
+    }
+
+    return run
   }
 
+  const runDiscovery = createSerializedJobRunner(
+    deps.runDiscovery,
+    'discovery refresh failed',
+  )
+  const runWalletBackfill = createSerializedJobRunner(
+    deps.runWalletBackfill,
+    'wallet backfill failed',
+  )
+  const runScoreRefresh = createSerializedJobRunner(
+    deps.runScoreRefresh,
+    'score refresh failed',
+  )
+
   const timers = [
-    setInterval(() => {
-      runJob(deps.runDiscovery, 'discovery refresh failed')
-    }, deps.discoveryIntervalMs),
-    setInterval(() => {
-      runJob(deps.runWalletBackfill, 'wallet backfill failed')
-    }, deps.walletIntervalMs),
-    setInterval(() => {
-      runJob(deps.runScoreRefresh, 'score refresh failed')
-    }, deps.scoreIntervalMs),
+    setInterval(runDiscovery, deps.discoveryIntervalMs),
+    setInterval(runWalletBackfill, deps.walletIntervalMs),
+    setInterval(runScoreRefresh, deps.scoreIntervalMs),
   ]
 
   return {
@@ -93,6 +128,7 @@ export function startRuntimeRefreshScheduler(
         marketRepo: runtime.repos.marketRepo,
         minVolume: runtime.env.minMarketVolume,
       })
+      await deps.refreshSocketSubscriptions?.()
     },
     runScoreRefresh: async () =>
       recompute({

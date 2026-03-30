@@ -25,6 +25,8 @@ interface MarketRepoLike {
 interface MarketSocketLike {
   connect: (assetIds: string[]) => void
   disconnect: () => void
+  subscribe: (assetIds: string[]) => void
+  unsubscribe: (assetIds: string[]) => void
   on: (
     event: 'close' | 'error' | 'message',
     listener: (...args: unknown[]) => void,
@@ -39,6 +41,26 @@ export function createMarketSocketLoop(deps: {
   let reconnectTimer: ReturnType<typeof setTimeout> | undefined
   let stopped = false
   let tokenLookup = new Map<string, TrackedTokenRow>()
+
+  const loadTrackedTokens = async () => {
+    const trackedTokens = await deps.marketRepo.listTrackedTokens()
+    const nextLookup = new Map(
+      trackedTokens.map((token) => [token.tokenId, token]),
+    )
+    const previousTokenIds = [...tokenLookup.keys()]
+    const nextTokenIds = [...nextLookup.keys()]
+
+    tokenLookup = nextLookup
+
+    return {
+      addedTokenIds: nextTokenIds.filter(
+        (tokenId) => !previousTokenIds.includes(tokenId),
+      ),
+      removedTokenIds: previousTokenIds.filter(
+        (tokenId) => !nextLookup.has(tokenId),
+      ),
+    }
+  }
 
   const scheduleReconnect = () => {
     if (stopped || reconnectTimer !== undefined) {
@@ -57,10 +79,7 @@ export function createMarketSocketLoop(deps: {
     }
 
     try {
-      const trackedTokens = await deps.marketRepo.listTrackedTokens()
-      tokenLookup = new Map(
-        trackedTokens.map((token) => [token.tokenId, token]),
-      )
+      await loadTrackedTokens()
 
       deps.logger.info(
         {
@@ -73,6 +92,29 @@ export function createMarketSocketLoop(deps: {
     } catch (error) {
       deps.logger.error({ err: error }, 'failed to start market socket')
       scheduleReconnect()
+    }
+  }
+
+  const refreshSubscriptions = async () => {
+    if (stopped) {
+      return
+    }
+
+    try {
+      const { addedTokenIds, removedTokenIds } = await loadTrackedTokens()
+
+      if (removedTokenIds.length > 0) {
+        deps.marketSocket.unsubscribe(removedTokenIds)
+      }
+
+      if (addedTokenIds.length > 0) {
+        deps.marketSocket.subscribe(addedTokenIds)
+      }
+    } catch (error) {
+      deps.logger.error(
+        { err: error },
+        'failed to refresh market socket subscriptions',
+      )
     }
   }
 
@@ -100,6 +142,7 @@ export function createMarketSocketLoop(deps: {
 
   return {
     start: connect,
+    refreshSubscriptions,
     stop: () => {
       stopped = true
 

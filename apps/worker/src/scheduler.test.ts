@@ -82,6 +82,47 @@ describe('startRefreshScheduler', () => {
     scheduler.stop()
   })
 
+  it('serializes each recurring job independently when a run takes too long', async () => {
+    vi.useFakeTimers()
+
+    let resolveDiscovery: () => void = () => undefined
+    const discovery = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDiscovery = resolve
+        }),
+    )
+    const backfill = vi.fn(async () => undefined)
+    const recompute = vi.fn(async () => undefined)
+
+    const scheduler = startRefreshScheduler({
+      runDiscovery: discovery,
+      runWalletBackfill: backfill,
+      runScoreRefresh: recompute,
+      discoveryIntervalMs: 1_000,
+      walletIntervalMs: 2_000,
+      scoreIntervalMs: 1_500,
+      logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+    })
+
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    expect(discovery).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(3_000)
+
+    expect(discovery).toHaveBeenCalledTimes(1)
+    expect(backfill).toHaveBeenCalledTimes(2)
+    expect(recompute).toHaveBeenCalledTimes(2)
+
+    resolveDiscovery()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(discovery).toHaveBeenCalledTimes(2)
+
+    scheduler.stop()
+  })
+
   it('builds recurring jobs from runtime helpers', async () => {
     vi.useFakeTimers()
 
@@ -130,11 +171,13 @@ describe('startRefreshScheduler', () => {
     const runDiscoveryOnce = vi.fn(async () => [])
     const runBackfillOnce = vi.fn(async () => undefined)
     const recomputeMarketScores = vi.fn(async () => undefined)
+    const refreshSocketSubscriptions = vi.fn(async () => undefined)
 
     const scheduler = startRuntimeRefreshScheduler(runtime, {
       recomputeMarketScores,
       runBackfillOnce,
       runDiscoveryOnce,
+      refreshSocketSubscriptions,
     })
 
     expect(runDiscoveryOnce).not.toHaveBeenCalled()
@@ -155,6 +198,7 @@ describe('startRefreshScheduler', () => {
       marketRepo: runtime.repos.marketRepo,
       minVolume: runtime.env.minMarketVolume,
     })
+    expect(refreshSocketSubscriptions).toHaveBeenCalledTimes(1)
     expect(runBackfillOnce).not.toHaveBeenCalled()
     expect(recomputeMarketScores).not.toHaveBeenCalled()
 

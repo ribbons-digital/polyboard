@@ -6,13 +6,17 @@ import { createMarketSocketLoop } from './socket-loop'
 
 type Runtime = ReturnType<typeof createRuntime>
 type RefreshScheduler = ReturnType<typeof startRuntimeRefreshScheduler>
+type RefreshSchedulerDeps = Parameters<typeof startRuntimeRefreshScheduler>[1]
 
 export async function startWorker(
   deps: {
     createRuntime?: () => Runtime
     createSocketLoop?: typeof createMarketSocketLoop
     runLiveBootstrap?: () => Promise<void>
-    startRefreshScheduler?: (runtime: Runtime) => RefreshScheduler
+    startRefreshScheduler?: (
+      runtime: Runtime,
+      deps?: RefreshSchedulerDeps,
+    ) => RefreshScheduler
   } = {},
 ) {
   const runtime = deps.createRuntime?.() ?? createRuntime()
@@ -21,14 +25,19 @@ export async function startWorker(
     runLiveBootstrap: deps.runLiveBootstrap,
   })
 
-  const refreshScheduler =
-    deps.startRefreshScheduler?.(runtime) ?? startRuntimeRefreshScheduler(runtime)
-
   const marketSocketLoop = (deps.createSocketLoop ?? createMarketSocketLoop)({
     logger: runtime.logger,
     marketRepo: runtime.repos.marketRepo,
     marketSocket: runtime.marketSocket,
   })
+
+  const refreshScheduler =
+    deps.startRefreshScheduler?.(runtime, {
+      refreshSocketSubscriptions: marketSocketLoop.refreshSubscriptions,
+    }) ??
+    startRuntimeRefreshScheduler(runtime, {
+      refreshSocketSubscriptions: marketSocketLoop.refreshSubscriptions,
+    })
 
   await marketSocketLoop.start()
 
