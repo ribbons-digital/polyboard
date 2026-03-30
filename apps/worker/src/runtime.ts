@@ -15,11 +15,7 @@ import {
   upsertWalletProfiles,
   upsertWalletScore,
 } from '@polyboard/db'
-import {
-  DataClient,
-  GammaClient,
-  MarketSocket,
-} from '../../../packages/polymarket/src/index'
+import { DataClient, GammaClient, MarketSocket } from '@polyboard/polymarket'
 import pino from 'pino'
 import { parseWorkerEnv } from './config'
 
