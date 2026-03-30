@@ -54,10 +54,6 @@ export function startRefreshScheduler(deps: {
     })
   }
 
-  runJob(deps.runDiscovery, 'discovery refresh failed')
-  runJob(deps.runWalletBackfill, 'wallet backfill failed')
-  runJob(deps.runScoreRefresh, 'score refresh failed')
-
   const timers = [
     setInterval(() => {
       runJob(deps.runDiscovery, 'discovery refresh failed')

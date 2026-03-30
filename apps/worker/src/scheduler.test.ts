@@ -9,6 +9,50 @@ describe('startRefreshScheduler', () => {
     vi.useRealTimers()
   })
 
+  it('waits until the first interval tick before running recurring jobs', async () => {
+    vi.useFakeTimers()
+
+    const discovery = vi.fn(async () => undefined)
+    const backfill = vi.fn(async () => undefined)
+    const recompute = vi.fn(async () => undefined)
+
+    const scheduler = startRefreshScheduler({
+      runDiscovery: discovery,
+      runWalletBackfill: backfill,
+      runScoreRefresh: recompute,
+      discoveryIntervalMs: 1_000,
+      walletIntervalMs: 2_000,
+      scoreIntervalMs: 1_500,
+      logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
+    })
+
+    expect(discovery).not.toHaveBeenCalled()
+    expect(backfill).not.toHaveBeenCalled()
+    expect(recompute).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(999)
+
+    expect(discovery).not.toHaveBeenCalled()
+    expect(backfill).not.toHaveBeenCalled()
+    expect(recompute).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+
+    expect(discovery).toHaveBeenCalledTimes(1)
+    expect(backfill).not.toHaveBeenCalled()
+    expect(recompute).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(recompute).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(backfill).toHaveBeenCalledTimes(1)
+
+    scheduler.stop()
+  })
+
   it('keeps retrying failed jobs without stopping sibling jobs', async () => {
     vi.useFakeTimers()
 
@@ -29,11 +73,11 @@ describe('startRefreshScheduler', () => {
       logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
     })
 
-    await vi.advanceTimersByTimeAsync(2_500)
+    await vi.advanceTimersByTimeAsync(4_100)
 
-    expect(discovery).toHaveBeenCalled()
+    expect(discovery).toHaveBeenCalledTimes(4)
     expect(backfill).toHaveBeenCalledTimes(2)
-    expect(recompute).toHaveBeenCalled()
+    expect(recompute).toHaveBeenCalledTimes(2)
 
     scheduler.stop()
   })
@@ -93,7 +137,17 @@ describe('startRefreshScheduler', () => {
       runDiscoveryOnce,
     })
 
-    await vi.advanceTimersByTimeAsync(2_500)
+    expect(runDiscoveryOnce).not.toHaveBeenCalled()
+    expect(runBackfillOnce).not.toHaveBeenCalled()
+    expect(recomputeMarketScores).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(999)
+
+    expect(runDiscoveryOnce).not.toHaveBeenCalled()
+    expect(runBackfillOnce).not.toHaveBeenCalled()
+    expect(recomputeMarketScores).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
 
     expect(runDiscoveryOnce).toHaveBeenCalledWith({
       freshnessRepo: runtime.repos.freshnessRepo,
@@ -101,16 +155,24 @@ describe('startRefreshScheduler', () => {
       marketRepo: runtime.repos.marketRepo,
       minVolume: runtime.env.minMarketVolume,
     })
-    expect(runBackfillOnce).toHaveBeenCalledWith({
-      dataClient: runtime.dataClient,
-      marketRepo: runtime.repos.marketRepo,
-      walletRepo: runtime.repos.walletRepo,
-    })
+    expect(runBackfillOnce).not.toHaveBeenCalled()
+    expect(recomputeMarketScores).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(500)
+
     expect(recomputeMarketScores).toHaveBeenCalledWith({
       marketRepo: runtime.repos.marketRepo,
       settings: {
         scoreWeights: { marketStructure: 0.3, smartMoney: 0.5, timing: 0.2 },
       },
+    })
+
+    await vi.advanceTimersByTimeAsync(500)
+
+    expect(runBackfillOnce).toHaveBeenCalledWith({
+      dataClient: runtime.dataClient,
+      marketRepo: runtime.repos.marketRepo,
+      walletRepo: runtime.repos.walletRepo,
     })
 
     scheduler.stop()
