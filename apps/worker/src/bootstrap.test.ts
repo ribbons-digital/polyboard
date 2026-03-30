@@ -99,10 +99,44 @@ describe('bootstrapWorkerData', () => {
     expect(seedFallback).not.toHaveBeenCalled()
   })
 
+  it('preserves the live bootstrap error when checkUsableData fails during fallback decision making', async () => {
+    const bootstrapError = new Error('gamma unavailable')
+    const decisionError = new Error('freshness lookup failed')
+    const markFreshness = vi.fn(async () => undefined)
+    const seedFallback = vi.fn(async () => undefined)
+
+    const result = bootstrapWorkerData({
+      checkUsableData: async () => {
+        throw decisionError
+      },
+      markFreshness,
+      runFallbackSeed: seedFallback,
+      runLiveBootstrap: vi.fn(async () => {
+        throw bootstrapError
+      }),
+    })
+
+    await expect(result).rejects.toBeInstanceOf(AggregateError)
+
+    try {
+      await result
+    } catch (error) {
+      expect(error).toBeInstanceOf(AggregateError)
+      expect((error as AggregateError).errors).toEqual([
+        bootstrapError,
+        decisionError,
+      ])
+    }
+
+    expect(markFreshness).not.toHaveBeenCalled()
+    expect(seedFallback).not.toHaveBeenCalled()
+  })
+
   it('does not trigger fallback seeding when marking live freshness fails', async () => {
+    const markFailure = new Error('freshness store unavailable')
     const markFreshness = vi.fn(async (status: 'live' | 'fallback' | 'degraded') => {
       if (status === 'live') {
-        throw new Error('freshness store unavailable')
+        throw markFailure
       }
     })
     const seedFallback = vi.fn(async () => undefined)
@@ -116,7 +150,10 @@ describe('bootstrapWorkerData', () => {
         runFallbackSeed: seedFallback,
         runLiveBootstrap: vi.fn(async () => undefined),
       }),
-    ).rejects.toThrow('Failed to mark live freshness after bootstrap')
+    ).rejects.toMatchObject({
+      cause: markFailure,
+      message: 'Failed to mark live freshness after bootstrap',
+    })
 
     expect(markFreshness).toHaveBeenCalledTimes(1)
     expect(markFreshness).toHaveBeenCalledWith('live')

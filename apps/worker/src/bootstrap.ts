@@ -26,7 +26,20 @@ async function handleLiveBootstrapFailure(
   },
   bootstrapError: unknown,
 ) {
-  const state = await deps.checkUsableData()
+  let state: {
+    hasFreshnessRows: boolean
+    hasMarketScores: boolean
+    hasWalletScores: boolean
+  }
+
+  try {
+    state = await deps.checkUsableData()
+  } catch (decisionError) {
+    throw new AggregateError(
+      [toError(bootstrapError), toError(decisionError)],
+      'Bootstrap fallback decision failed after live bootstrap failure',
+    )
+  }
 
   try {
     if (shouldRunFallbackSeed({ bootstrapFailed: true, ...state })) {
