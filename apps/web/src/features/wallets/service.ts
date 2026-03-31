@@ -1,6 +1,5 @@
 import {
   createDb,
-  getWalletDetailData,
   walletScores,
   wallets,
   walletWatchlists,
@@ -62,23 +61,30 @@ export async function listWalletLeaderboard(filters: WalletLeaderboardInput = {}
   }))
 }
 
-export async function getWalletDetail(address: string) {
+export async function getWalletScores(address: string) {
   const db = createDb()
-  const detail = await getWalletDetailData(db, address)
+
+  const [score] = await db
+    .select({
+      averagePositionSize: sql<number>`(${walletScores.averagePositionSize})::float`,
+      completeness: walletScores.completeness,
+      realizedPnl: sql<number>`(${walletScores.realizedPnl})::float`,
+      tags: walletScores.tags,
+      totalPnl: sql<number>`(${walletScores.totalPnl})::float`,
+      unrealizedPnl: sql<number>`(${walletScores.unrealizedPnl})::float`,
+      walletAddress: walletScores.walletAddress,
+      winRate: sql<number>`(${walletScores.winRate})::float`,
+    })
+    .from(walletScores)
+    .where(eq(walletScores.walletAddress, address))
+    .limit(1)
+
+  if (!score) {
+    return null
+  }
 
   return {
-    ...detail,
-    score: detail.score
-      ? {
-          ...detail.score,
-          tags: toStringArray(detail.score.tags),
-        }
-      : detail.score,
-    wallet: detail.wallet
-      ? {
-          ...detail.wallet,
-          metadata: toRecord(detail.wallet.metadata),
-        }
-      : detail.wallet,
+    ...score,
+    tags: toStringArray(score.tags),
   }
 }

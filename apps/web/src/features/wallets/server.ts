@@ -1,6 +1,11 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
-import { getWalletDetail, listWalletLeaderboard } from './service'
+import { listWalletLeaderboard, getWalletScores } from './service'
+import {
+  fetchWalletPositions,
+  fetchWalletTrades,
+  fetchWalletSummary,
+} from './live-api'
 
 export const getWalletLeaderboard = createServerFn({ method: 'GET' })
   .inputValidator((input: unknown) =>
@@ -17,4 +22,19 @@ export const getWalletById = createServerFn({ method: 'GET' })
   .inputValidator((input: unknown) =>
     z.object({ address: z.string() }).parse(input),
   )
-  .handler(({ data }) => getWalletDetail(data.address))
+  .handler(async ({ data }) => {
+    const [positions, trades, summary, scores] = await Promise.all([
+      fetchWalletPositions(data.address).catch(() => []),
+      fetchWalletTrades(data.address).catch(() => []),
+      fetchWalletSummary(data.address).catch(() => null),
+      getWalletScores(data.address).catch(() => null),
+    ])
+
+    return {
+      address: data.address,
+      positions: positions.slice(0, 50),
+      recentTrades: trades.slice(0, 20),
+      summary,
+      scores,
+    }
+  })
