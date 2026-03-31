@@ -8,24 +8,12 @@ describe('runBackfillOnce', () => {
     await runBackfillOnce({
       dataClient: {
         getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
-        getPositions: async () => [],
-        getClosedPositions: async () => [],
-        getTrades: async () => [],
-        getHolders: async () => [],
-        getValue: async () => [{ value: 12 }],
+        getValue: async () => [{ realizedPnl: 100, totalPnl: 200, winRate: 60 }],
       },
       freshnessRepo: {
         updateFreshness,
       },
-      marketRepo: {
-        listMarketIdsByConditionIds: async () => new Map(),
-        replaceMarketHolders: vi.fn(async () => undefined),
-      },
       walletRepo: {
-        replaceClosedPositions: vi.fn(async () => undefined),
-        replaceOpenPositions: vi.fn(async () => undefined),
-        replaceTrades: vi.fn(async () => undefined),
-        replaceWalletEventStats: vi.fn(async () => undefined),
         upsertWalletProfiles: vi.fn(async () => undefined),
         upsertWalletScore: vi.fn(async () => undefined),
       },
@@ -34,7 +22,7 @@ describe('runBackfillOnce', () => {
     expect(updateFreshness).toHaveBeenCalledWith('data:wallets', 'live')
   })
 
-  it('requests the top 50 leaderboard rows and maps documented profile fields', async () => {
+  it('requests the top 20 leaderboard rows and maps documented profile fields', async () => {
     const getLeaderboard = vi.fn(async () => [
       {
         profileImage: 'https://example.com/avatar.png',
@@ -48,27 +36,15 @@ describe('runBackfillOnce', () => {
     await runBackfillOnce({
       dataClient: {
         getLeaderboard,
-        getPositions: async () => [],
-        getClosedPositions: async () => [],
-        getTrades: async () => [],
-        getHolders: async () => [],
-        getValue: async () => [{ value: 12 }],
-      },
-      marketRepo: {
-        listMarketIdsByConditionIds: async () => new Map(),
-        replaceMarketHolders: vi.fn(async () => undefined),
+        getValue: async () => [{ totalPnl: 100 }],
       },
       walletRepo: {
-        replaceClosedPositions: vi.fn(async () => undefined),
-        replaceOpenPositions: vi.fn(async () => undefined),
-        replaceTrades: vi.fn(async () => undefined),
-        replaceWalletEventStats: vi.fn(async () => undefined),
         upsertWalletProfiles,
         upsertWalletScore: vi.fn(async () => undefined),
       },
     })
 
-    expect(getLeaderboard).toHaveBeenCalledWith({ limit: 50 })
+    expect(getLeaderboard).toHaveBeenCalledWith({ limit: 20 })
     expect(upsertWalletProfiles).toHaveBeenCalledWith([
       expect.objectContaining({
         address: '0xwallet',
@@ -79,498 +55,129 @@ describe('runBackfillOnce', () => {
     ])
   })
 
-  it('paginates positions/trades and disables taker-only trade filtering', async () => {
-    const getPositions = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Array.from({ length: 500 }, () => ({
-          asset: 'token-1',
-          avgPrice: 0.45,
-          conditionId: '0xcondition',
-          currentValue: 8,
-          outcome: 'Yes',
-          realizedPnl: 1,
-          size: 10,
-          totalPnl: 2,
-        })),
-      )
-      .mockResolvedValueOnce([])
-    const getClosedPositions = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Array.from({ length: 50 }, () => ({
-          asset: 'token-1',
-          avgPrice: 0.45,
-          conditionId: '0xcondition',
-          eventSlug: 'event-a',
-          outcome: 'Yes',
-          realizedPnl: 7,
-          timestamp: 1_700_000_000,
-          totalBought: 10,
-        })),
-      )
-      .mockResolvedValueOnce([])
-    const getTrades = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Array.from({ length: 500 }, () => ({
-          asset: 'token-1',
-          conditionId: '0xcondition',
-          eventSlug: 'event-a',
-          price: 0.55,
-          proxyWallet: '0xwallet',
-          side: 'BUY',
-          size: 10,
-          timestamp: 1_700_000_000,
-          transactionHash: crypto.randomUUID(),
-        })),
-      )
-      .mockResolvedValueOnce([])
+  it('upserts wallet scores with summary data from getValue', async () => {
+    const upsertWalletScore = vi.fn(async () => undefined)
 
     await runBackfillOnce({
       dataClient: {
         getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
-        getPositions,
-        getClosedPositions,
-        getTrades,
-        getHolders: async () => [],
-        getValue: async () => [{ value: 12 }],
-      },
-      marketRepo: {
-        listMarketIdsByConditionIds: async () =>
-          new Map([['0xcondition', 'market-1']]),
-        replaceMarketHolders: vi.fn(async () => undefined),
+        getValue: async () => [
+          {
+            realizedPnl: 5000,
+            unrealizedPnl: 1000,
+            totalPnl: 6000,
+            winRate: 75,
+            averagePositionSize: 500,
+          },
+        ],
       },
       walletRepo: {
-        replaceClosedPositions: vi.fn(async () => undefined),
-        replaceOpenPositions: vi.fn(async () => undefined),
-        replaceTrades: vi.fn(async () => undefined),
-        replaceWalletEventStats: vi.fn(async () => undefined),
         upsertWalletProfiles: vi.fn(async () => undefined),
-        upsertWalletScore: vi.fn(async () => undefined),
+        upsertWalletScore,
       },
     })
 
-    expect(getPositions).toHaveBeenNthCalledWith(1, {
-      limit: 500,
-      offset: 0,
-      user: '0xwallet',
-    })
-    expect(getPositions).toHaveBeenNthCalledWith(2, {
-      limit: 500,
-      offset: 500,
-      user: '0xwallet',
-    })
-    expect(getClosedPositions).toHaveBeenNthCalledWith(1, {
-      limit: 50,
-      offset: 0,
-      user: '0xwallet',
-    })
-    expect(getClosedPositions).toHaveBeenNthCalledWith(2, {
-      limit: 50,
-      offset: 50,
-      user: '0xwallet',
-    })
-    expect(getTrades).toHaveBeenNthCalledWith(1, {
-      limit: 500,
-      offset: 0,
-      takerOnly: false,
-      user: '0xwallet',
-    })
-    expect(getTrades).toHaveBeenNthCalledWith(2, {
-      limit: 500,
-      offset: 500,
-      takerOnly: false,
-      user: '0xwallet',
-    })
+    expect(upsertWalletScore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        walletAddress: '0xwallet',
+        realizedPnl: 5000,
+        unrealizedPnl: 1000,
+        totalPnl: 6000,
+        winRate: 0.75,
+        averagePositionSize: 500,
+        completeness: 'backfilled',
+      }),
+    )
   })
 
-  it('treats high-offset trade 400 responses as pagination exhaustion', async () => {
-    const updateFreshness = vi.fn(async () => undefined)
-    const getTrades = vi.fn(
-      async (query?: Record<string, string | number | boolean | undefined>) => {
-        const offset = Number(query?.offset ?? 0)
+  it('derives wallet tags based on performance metrics', async () => {
+    const upsertWalletScore = vi.fn(async () => undefined)
 
-        if (offset < 3_500) {
-          return Array.from({ length: 500 }, (_, index) => ({
-            asset: 'token-1',
-            conditionId: `0xcondition-${offset}-${index}`,
-            eventSlug: 'event-a',
-            price: 0.55,
-            proxyWallet: '0xwallet',
-            side: 'BUY',
-            size: 10,
-            timestamp: 1_700_000_000 + index,
-            transactionHash: `0xtrade-${offset}-${index}`,
-          }))
-        }
-
-        throw new Error('Polymarket request failed: 400 Bad Request')
+    await runBackfillOnce({
+      dataClient: {
+        getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
+        getValue: async () => [
+          {
+            totalPnl: 50000,
+            winRate: 65,
+            averagePositionSize: 2000,
+          },
+        ],
       },
+      walletRepo: {
+        upsertWalletProfiles: vi.fn(async () => undefined),
+        upsertWalletScore,
+      },
+    })
+
+    expect(upsertWalletScore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tags: expect.arrayContaining(['high-performer', 'consistent', 'high-conviction']),
+      }),
     )
+  })
+
+  it('throws when all wallets are rate-limited', async () => {
+    const rateLimitError = new Error('429 Too Many Requests')
 
     await expect(
       runBackfillOnce({
         dataClient: {
           getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
-          getPositions: async () => [],
-          getClosedPositions: async () => [],
-          getTrades,
-          getHolders: async () => [],
-          getValue: async () => [{ value: 12 }],
-        },
-        freshnessRepo: {
-          updateFreshness,
-        },
-        marketRepo: {
-          listMarketIdsByConditionIds: async () => new Map(),
-          replaceMarketHolders: vi.fn(async () => undefined),
+          getValue: async () => {
+            throw rateLimitError
+          },
         },
         walletRepo: {
-          replaceClosedPositions: vi.fn(async () => undefined),
-          replaceOpenPositions: vi.fn(async () => undefined),
-          replaceTrades: vi.fn(async () => undefined),
-          replaceWalletEventStats: vi.fn(async () => undefined),
           upsertWalletProfiles: vi.fn(async () => undefined),
           upsertWalletScore: vi.fn(async () => undefined),
         },
       }),
-    ).resolves.toBeUndefined()
-
-    expect(updateFreshness).toHaveBeenCalledWith('data:wallets', 'live')
-    expect(getTrades).toHaveBeenCalledWith({
-      limit: 500,
-      offset: 3_500,
-      takerOnly: false,
-      user: '0xwallet',
-    })
+    ).rejects.toThrow('Wallet backfill was rate-limited for all selected wallets')
   })
 
-  it('treats high-offset trade 429 responses as pagination exhaustion', async () => {
-    const updateFreshness = vi.fn(async () => undefined)
-    const getTrades = vi.fn(
-      async (query?: Record<string, string | number | boolean | undefined>) => {
-        const offset = Number(query?.offset ?? 0)
-
-        if (offset < 3_500) {
-          return Array.from({ length: 500 }, (_, index) => ({
-            asset: 'token-1',
-            conditionId: `0xcondition-${offset}-${index}`,
-            eventSlug: 'event-a',
-            price: 0.55,
-            proxyWallet: '0xwallet',
-            side: 'BUY',
-            size: 10,
-            timestamp: 1_700_000_000 + index,
-            transactionHash: `0xtrade-${offset}-${index}`,
-          }))
-        }
-
-        throw new Error('Polymarket request failed: 429 Too Many Requests')
-      },
-    )
-
-    await expect(
-      runBackfillOnce({
-        dataClient: {
-          getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
-          getPositions: async () => [],
-          getClosedPositions: async () => [],
-          getTrades,
-          getHolders: async () => [],
-          getValue: async () => [{ value: 12 }],
-        },
-        freshnessRepo: {
-          updateFreshness,
-        },
-        marketRepo: {
-          listMarketIdsByConditionIds: async () => new Map(),
-          replaceMarketHolders: vi.fn(async () => undefined),
-        },
-        walletRepo: {
-          replaceClosedPositions: vi.fn(async () => undefined),
-          replaceOpenPositions: vi.fn(async () => undefined),
-          replaceTrades: vi.fn(async () => undefined),
-          replaceWalletEventStats: vi.fn(async () => undefined),
-          upsertWalletProfiles: vi.fn(async () => undefined),
-          upsertWalletScore: vi.fn(async () => undefined),
-        },
-      }),
-    ).resolves.toBeUndefined()
-
-    expect(updateFreshness).toHaveBeenCalledWith('data:wallets', 'live')
-    expect(getTrades).toHaveBeenCalledWith({
-      limit: 500,
-      offset: 3_500,
-      takerOnly: false,
-      user: '0xwallet',
-    })
-  })
-
-  it('continues with other wallets when one wallet backfill is rate-limited', async () => {
-    const replaceOpenPositions = vi.fn(async () => undefined)
-    const updateFreshness = vi.fn(async () => undefined)
-
-    await expect(
-      runBackfillOnce({
-        dataClient: {
-          getLeaderboard: async () => [
-            { proxyWallet: '0xrate' },
-            { proxyWallet: '0xok' },
-          ],
-          getPositions: async (query) => {
-            if (query.user === '0xrate') {
-              throw new Error('Polymarket request failed: 429 Too Many Requests')
-            }
-
-            return []
-          },
-          getClosedPositions: async () => [],
-          getTrades: async () => [],
-          getHolders: async () => [],
-          getValue: async () => [{ value: 12 }],
-        },
-        freshnessRepo: {
-          updateFreshness,
-        },
-        marketRepo: {
-          listMarketIdsByConditionIds: async () => new Map(),
-          replaceMarketHolders: vi.fn(async () => undefined),
-        },
-        walletRepo: {
-          replaceClosedPositions: vi.fn(async () => undefined),
-          replaceOpenPositions,
-          replaceTrades: vi.fn(async () => undefined),
-          replaceWalletEventStats: vi.fn(async () => undefined),
-          upsertWalletProfiles: vi.fn(async () => undefined),
-          upsertWalletScore: vi.fn(async () => undefined),
-        },
-      }),
-    ).resolves.toBeUndefined()
-
-    expect(replaceOpenPositions).toHaveBeenCalledWith('0xok', [])
-    expect(updateFreshness).toHaveBeenCalledWith('data:wallets', 'live')
-  })
-
-  it('persists nested market holder responses for mapped condition ids', async () => {
-    const replaceMarketHolders = vi.fn(async () => undefined)
+  it('continues processing other wallets when one is rate-limited', async () => {
+    const rateLimitError = new Error('429 Too Many Requests')
+    const upsertWalletScore = vi.fn(async () => undefined)
 
     await runBackfillOnce({
       dataClient: {
-        getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
-        getPositions: async () => [],
-        getClosedPositions: async () => [],
-        getTrades: async () => [
-          {
-            asset: 'token-1',
-            conditionId: '0xcondition',
-            eventSlug: 'event-a',
-            price: 0.55,
-            proxyWallet: '0xwallet',
-            side: 'BUY',
-            size: 10,
-            timestamp: 1_700_000_000,
-            transactionHash: '0xtrade',
-          },
+        getLeaderboard: async () => [
+          { proxyWallet: '0xwallet1' },
+          { proxyWallet: '0xwallet2' },
         ],
-        getHolders: async () => [
-          {
-            holders: [
-              {
-                amount: 42,
-                asset: 'token-1',
-                proxyWallet: '0xholder',
-              },
-            ],
-            token: 'token-1',
-          },
-        ],
-        getValue: async () => [{ value: 12 }],
-      },
-      marketRepo: {
-        listMarketIdsByConditionIds: async () =>
-          new Map([['0xcondition', 'market-1']]),
-        replaceMarketHolders,
+        getValue: vi.fn(async () => [{ totalPnl: 100 }]),
       },
       walletRepo: {
-        replaceClosedPositions: vi.fn(async () => undefined),
-        replaceOpenPositions: vi.fn(async () => undefined),
-        replaceTrades: vi.fn(async () => undefined),
-        replaceWalletEventStats: vi.fn(async () => undefined),
         upsertWalletProfiles: vi.fn(async () => undefined),
-        upsertWalletScore: vi.fn(async () => undefined),
+        upsertWalletScore,
       },
     })
 
-    expect(replaceMarketHolders).toHaveBeenCalledWith('market-1', [
-      {
-        currentValue: undefined,
-        size: 42,
-        tokenId: 'token-1',
-        walletAddress: '0xholder',
-      },
+    // Both wallets should be processed since none threw
+    expect(upsertWalletScore).toHaveBeenCalledTimes(2)
+  })
+
+  it('respects maxWallets parameter', async () => {
+    const getLeaderboard = vi.fn(async () => [
+      { proxyWallet: '0xwallet1' },
+      { proxyWallet: '0xwallet2' },
+      { proxyWallet: '0xwallet3' },
     ])
-  })
-
-  it('refreshes market holders for markets seen only in positions', async () => {
-    const replaceMarketHolders = vi.fn(async () => undefined)
+    const upsertWalletScore = vi.fn(async () => undefined)
 
     await runBackfillOnce({
+      maxWallets: 2,
       dataClient: {
-        getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
-        getPositions: async () => [
-          {
-            asset: 'token-1',
-            avgPrice: 0.45,
-            conditionId: '0xcondition',
-            currentValue: 8,
-            outcome: 'Yes',
-            realizedPnl: 1,
-            size: 10,
-            totalPnl: 2,
-          },
-        ],
-        getClosedPositions: async () => [],
-        getTrades: async () => [],
-        getHolders: async () => [
-          {
-            holders: [
-              {
-                amount: 42,
-                asset: 'token-1',
-                proxyWallet: '0xholder',
-              },
-            ],
-            token: 'token-1',
-          },
-        ],
-        getValue: async () => [{ value: 12 }],
-      },
-      marketRepo: {
-        listMarketIdsByConditionIds: async () =>
-          new Map([['0xcondition', 'market-1']]),
-        replaceMarketHolders,
+        getLeaderboard,
+        getValue: async () => [{ totalPnl: 100 }],
       },
       walletRepo: {
-        replaceClosedPositions: vi.fn(async () => undefined),
-        replaceOpenPositions: vi.fn(async () => undefined),
-        replaceTrades: vi.fn(async () => undefined),
-        replaceWalletEventStats: vi.fn(async () => undefined),
         upsertWalletProfiles: vi.fn(async () => undefined),
-        upsertWalletScore: vi.fn(async () => undefined),
+        upsertWalletScore,
       },
     })
 
-    expect(replaceMarketHolders).toHaveBeenCalledWith('market-1', [
-      {
-        currentValue: undefined,
-        size: 42,
-        tokenId: 'token-1',
-        walletAddress: '0xholder',
-      },
-    ])
-  })
-
-  it('skips malformed trade timestamps instead of coercing them to now', async () => {
-    const replaceTrades = vi.fn(async () => undefined)
-    const replaceWalletEventStats = vi.fn(async () => undefined)
-
-    await runBackfillOnce({
-      dataClient: {
-        getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
-        getPositions: async () => [],
-        getClosedPositions: async () => [],
-        getTrades: async () => [
-          {
-            asset: 'token-1',
-            conditionId: '0xcondition',
-            price: 0.55,
-            proxyWallet: '0xwallet',
-            side: 'BUY',
-            size: 10,
-            timestamp: 'not-a-timestamp',
-            transactionHash: '0xtrade',
-          },
-        ],
-        getHolders: async () => [],
-        getValue: async () => [{ value: 12 }],
-      },
-      marketRepo: {
-        listMarketIdsByConditionIds: async () =>
-          new Map([['0xcondition', 'market-1']]),
-        replaceMarketHolders: vi.fn(async () => undefined),
-      },
-      walletRepo: {
-        replaceClosedPositions: vi.fn(async () => undefined),
-        replaceOpenPositions: vi.fn(async () => undefined),
-        replaceTrades,
-        replaceWalletEventStats,
-        upsertWalletProfiles: vi.fn(async () => undefined),
-        upsertWalletScore: vi.fn(async () => undefined),
-      },
-    })
-
-    expect(replaceTrades).toHaveBeenCalledWith('0xwallet', [])
-    expect(replaceWalletEventStats).toHaveBeenCalledWith('0xwallet', [])
-  })
-
-  it('builds event stats using trade counts and closed-position realized pnl', async () => {
-    const replaceWalletEventStats = vi.fn(async () => undefined)
-
-    await runBackfillOnce({
-      dataClient: {
-        getLeaderboard: async () => [{ proxyWallet: '0xwallet' }],
-        getPositions: async () => [],
-        getClosedPositions: async () => [
-          {
-            asset: 'token-1',
-            avgPrice: 0.45,
-            conditionId: '0xcondition',
-            eventSlug: 'event-a',
-            outcome: 'Yes',
-            realizedPnl: 7,
-            timestamp: 1_700_000_000,
-            totalBought: 10,
-          },
-        ],
-        getTrades: async () => [
-          {
-            asset: 'token-1',
-            conditionId: '0xcondition',
-            eventSlug: 'event-a',
-            price: 0.55,
-            proxyWallet: '0xwallet',
-            side: 'BUY',
-            size: 10,
-            timestamp: 1_700_000_000,
-            transactionHash: '0xtrade',
-          },
-        ],
-        getHolders: async () => [],
-        getValue: async () => [{ value: 12 }],
-      },
-      marketRepo: {
-        listMarketIdsByConditionIds: async () =>
-          new Map([['0xcondition', 'market-1']]),
-        replaceMarketHolders: vi.fn(async () => undefined),
-      },
-      walletRepo: {
-        replaceClosedPositions: vi.fn(async () => undefined),
-        replaceOpenPositions: vi.fn(async () => undefined),
-        replaceTrades: vi.fn(async () => undefined),
-        replaceWalletEventStats,
-        upsertWalletProfiles: vi.fn(async () => undefined),
-        upsertWalletScore: vi.fn(async () => undefined),
-      },
-    })
-
-    expect(replaceWalletEventStats).toHaveBeenCalledWith('0xwallet', [
-      {
-        eventSlug: 'event-a',
-        realizedPnl: 7,
-        totalVolume: 10,
-        tradeCount: 1,
-      },
-    ])
+    expect(getLeaderboard).toHaveBeenCalledWith({ limit: 2 })
   })
 })
