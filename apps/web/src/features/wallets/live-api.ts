@@ -1,6 +1,4 @@
-import { DataClient } from '@polyboard/polymarket'
-
-const dataClient = new DataClient()
+const POLYMARKET_DATA_URL = 'https://data-api.polymarket.com'
 
 interface CacheEntry<T> {
   data: T
@@ -50,14 +48,24 @@ export interface WalletSummary {
   winRate: number
 }
 
+async function fetchJson<T>(url: string): Promise<T> {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+  }
+  return response.json() as Promise<T>
+}
+
 export async function fetchWalletPositions(walletAddress: string): Promise<WalletPosition[]> {
   const cacheKey = `positions:${walletAddress}`
   const cached = getCached<WalletPosition[]>(cacheKey)
   if (cached) return cached
 
-  const response = await dataClient.getPositions({ user: walletAddress, limit: 100 })
+  const response = await fetchJson<Array<Record<string, unknown>>>(
+    `${POLYMARKET_DATA_URL}/positions?user=${encodeURIComponent(walletAddress)}&limit=100`
+  )
 
-  const positions: WalletPosition[] = response.map((row: Record<string, unknown>) => ({
+  const positions: WalletPosition[] = response.map((row) => ({
     marketId: String(row.market ?? row.marketId ?? ''),
     tokenId: String(row.tokenId ?? row.token_id ?? ''),
     outcome: String(row.outcome ?? ''),
@@ -75,9 +83,11 @@ export async function fetchWalletTrades(walletAddress: string): Promise<WalletTr
   const cached = getCached<WalletTrade[]>(cacheKey)
   if (cached) return cached
 
-  const response = await dataClient.getTrades({ user: walletAddress, limit: 100 })
+  const response = await fetchJson<Array<Record<string, unknown>>>(
+    `${POLYMARKET_DATA_URL}/trades?user=${encodeURIComponent(walletAddress)}&limit=100`
+  )
 
-  const trades: WalletTrade[] = response.map((row: Record<string, unknown>) => ({
+  const trades: WalletTrade[] = response.map((row) => ({
     transactionHash: String(row.transactionHash ?? row.transaction_hash ?? ''),
     marketId: String(row.market ?? row.marketId ?? ''),
     tokenId: String(row.tokenId ?? row.token_id ?? ''),
@@ -96,7 +106,9 @@ export async function fetchWalletSummary(walletAddress: string): Promise<WalletS
   const cached = getCached<WalletSummary>(cacheKey)
   if (cached) return cached
 
-  const response = await dataClient.getValue(walletAddress)
+  const response = await fetchJson<Array<Record<string, unknown>>>(
+    `${POLYMARKET_DATA_URL}/value?user=${encodeURIComponent(walletAddress)}`
+  )
 
   if (!response || response.length === 0) {
     return null
