@@ -4,14 +4,8 @@ import {
   getDashboardUsability,
   insertMarketSnapshot,
   type FreshnessStatus,
-  listMarketIdsByConditionIds,
   listSignalInputs,
   listTrackedTokens,
-  replaceClosedPositions,
-  replaceMarketHolders,
-  replaceOpenPositions,
-  replaceTrades,
-  replaceWalletEventStats,
   replaceTags,
   updateFreshness,
   upsertMarketScore,
@@ -76,38 +70,16 @@ export function createRuntime(env: Record<string, string | undefined> = process.
         ) => insertMarketSnapshot(db, input),
         listTrackedTokens: () => listTrackedTokens(db),
         listSignalInputs: () => listSignalInputs(db),
-        listMarketIdsByConditionIds: (conditionIds: string[]) =>
-          listMarketIdsByConditionIds(db, conditionIds),
         replaceTags: (
           marketId: string,
           tags: Parameters<typeof replaceTags>[2],
         ) => replaceTags(db, marketId, tags),
-        replaceMarketHolders: (
-          marketId: string,
-          rows: Parameters<typeof replaceMarketHolders>[2],
-        ) => replaceMarketHolders(db, marketId, rows),
         upsertScore: (input: Parameters<typeof upsertMarketScore>[1]) =>
           upsertMarketScore(db, input),
         upsertMarkets: (rows: Parameters<typeof upsertMarkets>[1]) =>
           upsertMarkets(db, rows),
       },
       walletRepo: {
-        replaceClosedPositions: (
-          walletAddress: string,
-          rows: Parameters<typeof replaceClosedPositions>[2],
-        ) => replaceClosedPositions(db, walletAddress, rows),
-        replaceOpenPositions: (
-          walletAddress: string,
-          rows: Parameters<typeof replaceOpenPositions>[2],
-        ) => replaceOpenPositions(db, walletAddress, rows),
-        replaceTrades: (
-          walletAddress: string,
-          rows: Parameters<typeof replaceTrades>[2],
-        ) => replaceTrades(db, walletAddress, rows),
-        replaceWalletEventStats: (
-          walletAddress: string,
-          rows: Parameters<typeof replaceWalletEventStats>[2],
-        ) => replaceWalletEventStats(db, walletAddress, rows),
         upsertWalletProfiles: (
           rows: Parameters<typeof upsertWalletProfiles>[1],
         ) => upsertWalletProfiles(db, rows),

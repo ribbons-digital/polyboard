@@ -1,34 +1,17 @@
-import {
-  deriveWalletTags,
-  summarizeWalletMetrics,
-} from '@polyboard/analytics'
 import type { FreshnessStatus } from '@polyboard/db'
 
 type RawRow = Record<string, unknown>
-
-const OPEN_POSITIONS_PAGE_LIMIT = 500
-const CLOSED_POSITIONS_PAGE_LIMIT = 50
-const TRADES_PAGE_LIMIT = 500
 
 export interface BackfillDeps {
   maxWallets?: number
   logger?: {
     warn?: (...args: unknown[]) => void
+    info?: (...args: unknown[]) => void
   }
   dataClient: {
     getLeaderboard: (
       query?: Record<string, string | number | boolean | undefined>,
     ) => Promise<RawRow[]>
-    getPositions: (
-      query: Record<string, string | number | boolean | undefined>,
-    ) => Promise<RawRow[]>
-    getClosedPositions: (
-      query: Record<string, string | number | boolean | undefined>,
-    ) => Promise<RawRow[]>
-    getTrades: (
-      query?: Record<string, string | number | boolean | undefined>,
-    ) => Promise<RawRow[]>
-    getHolders: (market: string) => Promise<RawRow[]>
     getValue: (user: string) => Promise<RawRow[]>
   }
   walletRepo: {
@@ -52,52 +35,6 @@ export interface BackfillDeps {
       tags: string[]
       completeness: 'provisional' | 'backfilled'
     }) => Promise<void>
-    replaceOpenPositions: (
-      walletAddress: string,
-      rows: Array<{
-        marketId: string
-        tokenId: string
-        outcome: string
-        size: number
-        averagePrice: number
-        currentValue: number
-        realizedPnl: number
-        totalPnl: number
-      }>,
-    ) => Promise<void>
-    replaceClosedPositions: (
-      walletAddress: string,
-      rows: Array<{
-        marketId: string
-        tokenId: string
-        outcome: string
-        totalBought: number
-        averagePrice: number
-        realizedPnl: number
-        closedAt: Date
-      }>,
-    ) => Promise<void>
-    replaceTrades: (
-      walletAddress: string,
-      rows: Array<{
-        transactionHash: string
-        marketId: string
-        tokenId: string
-        side: string
-        price: number
-        size: number
-        tradedAt: Date
-      }>,
-    ) => Promise<void>
-    replaceWalletEventStats: (
-      walletAddress: string,
-      rows: Array<{
-        eventSlug: string
-        tradeCount: number
-        realizedPnl: number
-        totalVolume: number
-      }>,
-    ) => Promise<void>
   }
   freshnessRepo?: {
     updateFreshness(
@@ -106,24 +43,14 @@ export interface BackfillDeps {
       completeness?: string,
     ): Promise<void>
   }
-  marketRepo: {
-    listMarketIdsByConditionIds: (
-      conditionIds: string[],
-    ) => Promise<Map<string, string>>
-    replaceMarketHolders: (
-      marketId: string,
-      rows: Array<{
-        tokenId: string
-        walletAddress: string
-        size: number
-        currentValue?: number
-      }>,
-    ) => Promise<void>
-  }
 }
 
 export async function runBackfillOnce(deps: BackfillDeps) {
-  const leaderboard = await deps.dataClient.getLeaderboard({ limit: 50 })
+  deps.logger?.info?.('starting wallet backfill')
+
+  const leaderboard = await deps.dataClient.getLeaderboard({ limit: deps.maxWallets ?? 20 })
+  deps.logger?.info?.({ leaderboardSize: leaderboard.length }, 'fetched leaderboard')
+
   const walletProfiles = leaderboard.flatMap((row) => {
     const address = getAddress(row)
 
@@ -144,106 +71,43 @@ export async function runBackfillOnce(deps: BackfillDeps) {
     ]
   })
 
+  if (walletProfiles.length === 0) {
+    deps.logger?.warn?.('no wallet profiles found in leaderboard')
+    return
+  }
+
   await deps.walletRepo.upsertWalletProfiles(walletProfiles)
+  deps.logger?.info?.({ walletCount: walletProfiles.length }, 'upserted wallet profiles')
 
-  const maxWallets = Math.max(1, Math.trunc(deps.maxWallets ?? 50))
-  let processedWalletCount = 0
+  let processedCount = 0
 
-  for (const wallet of walletProfiles.slice(0, maxWallets)) {
+  for (const wallet of walletProfiles) {
     try {
-      const [openRows, closedRows, tradeRows, valueRows] = await Promise.all([
-        fetchPagedRows((query) => deps.dataClient.getPositions(query), {
-          limit: OPEN_POSITIONS_PAGE_LIMIT,
-          user: wallet.address,
-        }),
-        fetchPagedRows((query) => deps.dataClient.getClosedPositions(query), {
-          limit: CLOSED_POSITIONS_PAGE_LIMIT,
-          user: wallet.address,
-        }),
-        fetchPagedRows((query) => deps.dataClient.getTrades(query), {
-          limit: TRADES_PAGE_LIMIT,
-          takerOnly: false,
-          user: wallet.address,
-        }),
-        deps.dataClient.getValue(wallet.address),
-      ])
-      const trackedConditionIds = collectConditionIds(
-        openRows,
-        closedRows,
-        tradeRows,
-      )
-      const marketIdLookup = await deps.marketRepo.listMarketIdsByConditionIds(
-        trackedConditionIds,
-      )
-      const mappedOpenPositions = mapOpenPositions(openRows, marketIdLookup)
-      const mappedClosedPositions = mapClosedPositions(closedRows, marketIdLookup)
-      const closedPositionMetrics = mapClosedPositionMetrics(
-        closedRows,
-        marketIdLookup,
-      )
-      const closedPositionEventStats = mapClosedPositionEventStats(
-        closedRows,
-        marketIdLookup,
-      )
-      const mappedTrades = mapTrades(tradeRows, marketIdLookup)
-      const mappedTradeEventStats = mapTradeEventStats(
-        tradeRows,
-        marketIdLookup,
-      )
-      const unrealizedPnl = getNumericValue(valueRows[0]?.value)
-
-      await deps.walletRepo.replaceOpenPositions(
-        wallet.address,
-        mappedOpenPositions,
-      )
-      await deps.walletRepo.replaceClosedPositions(
-        wallet.address,
-        mappedClosedPositions,
-      )
-      await deps.walletRepo.replaceTrades(wallet.address, mappedTrades)
-      await deps.walletRepo.replaceWalletEventStats(
-        wallet.address,
-        buildEventStats(mappedTradeEventStats, closedPositionEventStats),
-      )
-
-      const metrics = summarizeWalletMetrics({
-        closedPositions: closedPositionMetrics,
-        realizedPnl: closedPositionMetrics.reduce(
-          (sum, row) => sum + row.realizedPnl,
-          0,
-        ),
-        unrealizedPnl,
-      })
+      const valueData = await deps.dataClient.getValue(wallet.address)
+      const summary = extractWalletSummary(valueData, wallet.address)
 
       await deps.walletRepo.upsertWalletScore({
-        averagePositionSize: metrics.averagePositionSize,
-        completeness: 'provisional',
-        realizedPnl: metrics.realizedPnl,
-        tags: deriveWalletTags(metrics),
-        totalPnl: metrics.totalPnl,
-        unrealizedPnl: metrics.unrealizedPnl,
         walletAddress: wallet.address,
-        winRate: metrics.winRate,
+        realizedPnl: summary.realizedPnl,
+        unrealizedPnl: summary.unrealizedPnl,
+        totalPnl: summary.totalPnl,
+        winRate: summary.winRate,
+        averagePositionSize: summary.averagePositionSize,
+        tags: deriveWalletTags(summary),
+        completeness: 'backfilled',
       })
 
-      for (const conditionId of trackedConditionIds) {
-        const marketId = marketIdLookup.get(conditionId)
+      processedCount++
 
-        if (marketId === undefined) {
-          continue
-        }
-
-        const holders = await deps.dataClient.getHolders(conditionId)
-
-        await deps.marketRepo.replaceMarketHolders(
-          marketId,
-          normalizeHolderRows(holders),
+      if (processedCount % 5 === 0) {
+        deps.logger?.info?.(
+          { processed: processedCount, total: walletProfiles.length },
+          'wallet backfill progress'
         )
       }
-
-      processedWalletCount += 1
     } catch (error) {
       if (!isRateLimitedError(error)) {
+        deps.logger?.error?.({ err: error, walletAddress: wallet.address }, 'wallet backfill failed')
         throw error
       }
 
@@ -257,7 +121,12 @@ export async function runBackfillOnce(deps: BackfillDeps) {
     }
   }
 
-  if (walletProfiles.length > 0 && processedWalletCount === 0) {
+  deps.logger?.info?.(
+    { processed: processedCount, total: walletProfiles.length },
+    'completed wallet backfill'
+  )
+
+  if (walletProfiles.length > 0 && processedCount === 0) {
     throw new Error('Wallet backfill was rate-limited for all selected wallets')
   }
 
@@ -272,363 +141,87 @@ function isRateLimitedError(error: unknown) {
   return error.message.includes('429 Too Many Requests')
 }
 
-async function fetchPagedRows(
-  fetchPage: (
-    query: Record<string, string | number | boolean | undefined>,
-  ) => Promise<RawRow[]>,
-  baseQuery: Record<string, string | number | boolean | undefined>,
-) {
-  const limit = Number(baseQuery.limit ?? 100)
-  let offset = 0
-  const rows: RawRow[] = []
+function getAddress(row: RawRow): string | null {
+  const address = getOptionalString(row.address ?? row.userAddress ?? row.proxyWallet)
 
-  for (;;) {
-    let page: RawRow[]
-
-    try {
-      page = await fetchPage({
-        ...baseQuery,
-        offset,
-      })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-
-      // Polymarket can return 400/429 when offset pagination goes past available pages
-      // or a deep page is throttled. Treat that as exhaustion instead of failing the
-      // full wallet backfill for the current wallet.
-      if (
-        offset > 0 &&
-        (message.includes('400 Bad Request') ||
-          message.includes('429 Too Many Requests'))
-      ) {
-        return rows
-      }
-
-      throw error
-    }
-
-    rows.push(...page)
-
-    if (page.length < limit) {
-      return rows
-    }
-
-    offset += limit
-  }
-}
-
-function collectConditionIds(...rowSets: RawRow[][]) {
-  return [...new Set(rowSets.flatMap((rows) =>
-    rows
-      .map((row) => getConditionId(row))
-      .filter((value): value is string => value !== null),
-  ))]
-}
-
-function mapOpenPositions(
-  rows: RawRow[],
-  marketIdLookup: Map<string, string>,
-) {
-  return rows.flatMap((row) => {
-    const mapped = mapMarketRow(row, marketIdLookup)
-
-    if (mapped === null) {
-      return []
-    }
-
-    return [
-      {
-        averagePrice: getNumericValue(row.avgPrice),
-        currentValue: getNumericValue(row.currentValue),
-        marketId: mapped.marketId,
-        outcome: getOptionalString(row.outcome) ?? 'Unknown',
-        realizedPnl: getNumericValue(row.realizedPnl),
-        size: getNumericValue(row.size),
-        tokenId: mapped.tokenId,
-        totalPnl: getNumericValue(row.totalPnl),
-      },
-    ]
-  })
-}
-
-function mapClosedPositions(
-  rows: RawRow[],
-  marketIdLookup: Map<string, string>,
-) {
-  return rows.flatMap((row) => {
-    const mapped = mapMarketRow(row, marketIdLookup)
-    const closedAt = getDateValue(row.timestamp)
-
-    if (mapped === null || closedAt === null) {
-      return []
-    }
-
-    return [
-      {
-        averagePrice: getNumericValue(row.avgPrice),
-        closedAt,
-        marketId: mapped.marketId,
-        outcome: getOptionalString(row.outcome) ?? 'Unknown',
-        realizedPnl: getNumericValue(row.realizedPnl),
-        tokenId: mapped.tokenId,
-        totalBought: getNumericValue(row.totalBought),
-      },
-    ]
-  })
-}
-
-function mapTrades(rows: RawRow[], marketIdLookup: Map<string, string>) {
-  return rows.flatMap((row) => {
-    const mapped = mapMarketRow(row, marketIdLookup)
-    const tradedAt = getDateValue(row.timestamp)
-    const transactionHash =
-      getOptionalString(row.transactionHash) ?? getOptionalString(row.hash)
-
-    if (mapped === null || tradedAt === null || transactionHash === null) {
-      return []
-    }
-
-    return [
-      {
-        marketId: mapped.marketId,
-        price: getNumericValue(row.price),
-        side: getOptionalString(row.side) ?? 'UNKNOWN',
-        size: getNumericValue(row.size),
-        tokenId: mapped.tokenId,
-        tradedAt,
-        transactionHash,
-      },
-    ]
-  })
-}
-
-function mapClosedPositionMetrics(
-  rows: RawRow[],
-  marketIdLookup: Map<string, string>,
-) {
-  return rows.flatMap((row) => {
-    const mapped = mapMarketRow(row, marketIdLookup)
-    const closedAt = getDateValue(row.timestamp)
-
-    if (mapped === null || closedAt === null) {
-      return []
-    }
-
-    return [
-      {
-        category: null,
-        holdHours: null,
-        realizedPnl: getNumericValue(row.realizedPnl),
-        size: getNumericValue(row.totalBought),
-        won: getNumericValue(row.realizedPnl) > 0,
-      },
-    ]
-  })
-}
-
-function normalizeHolderRows(rows: RawRow[]) {
-  return rows.flatMap((row) => {
-    if (Array.isArray(row.holders)) {
-      const fallbackTokenId = getOptionalString(row.token)
-
-      return row.holders.flatMap((holder) =>
-        normalizeHolderRow(
-          holder as Record<string, unknown>,
-          fallbackTokenId,
-        ),
-      )
-    }
-
-    return normalizeHolderRow(row, getOptionalString(row.token))
-  })
-}
-
-function normalizeHolderRow(
-  row: RawRow,
-  fallbackTokenId: string | null,
-) {
-  const walletAddress = getAddress(row)
-  const tokenId = getOptionalString(row.asset) ?? fallbackTokenId
-
-  if (walletAddress === null || tokenId === null) {
-    return []
-  }
-
-  return [
-    {
-      currentValue: getOptionalNumber(row.currentValue) ?? undefined,
-      size: getOptionalNumber(row.amount) ?? getNumericValue(row.size),
-      tokenId,
-      walletAddress,
-    },
-  ]
-}
-
-function mapTradeEventStats(
-  rows: RawRow[],
-  marketIdLookup: Map<string, string>,
-) {
-  return rows.flatMap((row) => {
-    const mapped = mapMarketRow(row, marketIdLookup)
-    const tradedAt = getDateValue(row.timestamp)
-    const transactionHash =
-      getOptionalString(row.transactionHash) ?? getOptionalString(row.hash)
-
-    if (mapped === null || tradedAt === null || transactionHash === null) {
-      return []
-    }
-
-    return [
-      {
-        eventSlug: getOptionalString(row.eventSlug) ?? 'unknown',
-        totalVolume: getNumericValue(row.size),
-        tradeCount: 1,
-      },
-    ]
-  })
-}
-
-function mapClosedPositionEventStats(
-  rows: RawRow[],
-  marketIdLookup: Map<string, string>,
-) {
-  return rows.flatMap((row) => {
-    const mapped = mapMarketRow(row, marketIdLookup)
-    const closedAt = getDateValue(row.timestamp)
-
-    if (mapped === null || closedAt === null) {
-      return []
-    }
-
-    return [
-      {
-        eventSlug: getOptionalString(row.eventSlug) ?? 'unknown',
-        realizedPnl: getNumericValue(row.realizedPnl),
-      },
-    ]
-  })
-}
-
-function buildEventStats(
-  trades: Array<{ eventSlug: string; tradeCount: number; totalVolume: number }>,
-  closedPositions: Array<{ eventSlug: string; realizedPnl: number }>,
-) {
-  const byEvent = new Map<
-    string,
-    { tradeCount: number; realizedPnl: number; totalVolume: number }
-  >()
-
-  for (const trade of trades) {
-    const eventSlug = trade.eventSlug
-    const current = byEvent.get(eventSlug) ?? {
-      realizedPnl: 0,
-      totalVolume: 0,
-      tradeCount: 0,
-    }
-
-    current.tradeCount += trade.tradeCount
-    current.totalVolume += trade.totalVolume
-    byEvent.set(eventSlug, current)
-  }
-
-  for (const position of closedPositions) {
-    const eventSlug = position.eventSlug
-    const current = byEvent.get(eventSlug) ?? {
-      realizedPnl: 0,
-      totalVolume: 0,
-      tradeCount: 0,
-    }
-
-    current.realizedPnl += position.realizedPnl
-    byEvent.set(eventSlug, current)
-  }
-
-  return [...byEvent.entries()].map(([eventSlug, values]) => ({
-    eventSlug,
-    ...values,
-  }))
-}
-
-function mapMarketRow(row: RawRow, marketIdLookup: Map<string, string>) {
-  const conditionId = getConditionId(row)
-  const tokenId = getOptionalString(row.asset)
-
-  if (conditionId === null || tokenId === null) {
+  if (address === null) {
     return null
   }
 
-  const marketId = marketIdLookup.get(conditionId)
-
-  if (marketId === undefined) {
-    return null
-  }
-
-  return {
-    marketId,
-    tokenId,
-  }
+  return address.toLowerCase()
 }
 
-function getAddress(row: RawRow) {
-  return (
-    getOptionalString(row.proxyWallet) ?? getOptionalString(row.address)
-  )
-}
-
-function getConditionId(row: RawRow) {
-  return getOptionalString(row.conditionId)
-}
-
-function getOptionalString(value: unknown) {
-  return typeof value === 'string' && value.length > 0 ? value : null
-}
-
-function getBoolean(value: unknown) {
-  return value === true
-}
-
-function getOptionalNumber(value: unknown) {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null
-  }
-
+function getOptionalString(value: unknown): string | null {
   if (typeof value === 'string' && value.length > 0) {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-
-  return null
-}
-
-function getNumericValue(value: unknown) {
-  return getOptionalNumber(value) ?? 0
-}
-
-function getDateValue(value: unknown) {
-  if (value instanceof Date) {
     return value
   }
 
-  if (typeof value === 'number') {
-    const date = new Date(value < 1_000_000_000_000 ? value * 1000 : value)
-    return Number.isNaN(date.getTime()) ? null : date
-  }
-
-  if (typeof value === 'string' && value.length > 0) {
-    const parsedNumber = Number(value)
-
-    if (Number.isFinite(parsedNumber)) {
-      const date = new Date(
-        parsedNumber < 1_000_000_000_000
-          ? parsedNumber * 1000
-          : parsedNumber,
-      )
-      return Number.isNaN(date.getTime()) ? null : date
-    }
-
-    const parsedDate = Date.parse(value)
-    return Number.isNaN(parsedDate) ? null : new Date(parsedDate)
-  }
-
   return null
+}
+
+function getBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    return value.toLowerCase() === 'true'
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0
+  }
+
+  return false
+}
+
+function getNumericValue(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+
+  return 0
+}
+
+interface WalletSummary {
+  realizedPnl: number
+  unrealizedPnl: number
+  totalPnl: number
+  winRate: number
+  averagePositionSize: number
+}
+
+function extractWalletSummary(valueData: RawRow[], walletAddress: string): WalletSummary {
+  const firstRow = valueData[0] ?? {}
+
+  return {
+    realizedPnl: getNumericValue(firstRow.realizedPnl ?? firstRow.realized_profit),
+    unrealizedPnl: getNumericValue(firstRow.unrealizedPnl ?? firstRow.unrealized_profit),
+    totalPnl: getNumericValue(firstRow.totalPnl ?? firstRow.total_profit),
+    winRate: getNumericValue(firstRow.winRate ?? firstRow.win_rate) / 100,
+    averagePositionSize: getNumericValue(firstRow.averagePositionSize ?? firstRow.avg_position_size),
+  }
+}
+
+function deriveWalletTags(summary: WalletSummary): string[] {
+  const tags: string[] = []
+
+  if (summary.totalPnl > 10000) {
+    tags.push('high-performer')
+  }
+
+  if (summary.winRate > 0.6) {
+    tags.push('consistent')
+  }
+
+  if (summary.averagePositionSize > 1000) {
+    tags.push('high-conviction')
+  }
+
+  return tags
 }

@@ -13,7 +13,7 @@ describe('parseDatabaseEnv', () => {
       }),
     ).toMatchObject({
       minMarketVolume: 50000,
-      backfillBatchSize: 50,
+      backfillBatchSize: 20,
     })
   })
 })

@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { WalletTagList } from '../../components/wallets/wallet-tag-list'
 import { getWalletById } from '../../features/wallets/server'
-import type { getWalletDetail } from '../../features/wallets/service'
 
 const numberFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
@@ -14,29 +13,21 @@ export const Route = createFileRoute('/wallets/$walletId' as never)({
 })
 
 function WalletDetailPage() {
-  const detail = Route.useLoaderData() as Awaited<ReturnType<typeof getWalletDetail>>
-
-  if (!detail?.wallet) {
-    return <div className="surface">Wallet not found.</div>
-  }
+  const detail = Route.useLoaderData()
 
   return (
     <section className="stack">
       <div className="surface hero-panel">
         <p className="eyebrow">Wallet</p>
-        <h2>{detail.wallet.displayName ?? detail.wallet.address}</h2>
+        <h2>{detail.address}</h2>
         <div className="hero-metrics">
           <div>
-            <span className="metric-label">Verified</span>
-            <strong>{detail.wallet.verified ? 'Yes' : 'No'}</strong>
-          </div>
-          <div>
             <span className="metric-label">Total PnL</span>
-            <strong>{numberFormatter.format(Number(detail.score?.totalPnl ?? 0))}</strong>
+            <strong>{numberFormatter.format(Number(detail.score?.totalPnl ?? detail.summary?.totalPnl ?? 0))}</strong>
           </div>
           <div>
             <span className="metric-label">Win Rate</span>
-            <strong>{(Number(detail.score?.winRate ?? 0) * 100).toFixed(1)}%</strong>
+            <strong>{(Number(detail.score?.winRate ?? detail.summary?.winRate ?? 0) * 100).toFixed(1)}%</strong>
           </div>
         </div>
       </div>
@@ -47,41 +38,37 @@ function WalletDetailPage() {
       </div>
       <div className="detail-grid">
         <div className="surface">
-          <p className="eyebrow">Open positions</p>
+          <p className="eyebrow">Positions</p>
           <h3>Current Exposure</h3>
           <ul className="metric-list">
-            {detail.openPositions.map((position) => (
-              <li key={position.id}>
-                <span>{position.outcome}</span>
-                <strong>{Number(position.size).toFixed(2)}</strong>
-              </li>
-            ))}
+            {detail.positions.length === 0 ? (
+              <li>No positions data available</li>
+            ) : (
+              detail.positions.map((position, index) => (
+                <li key={index}>
+                  <span>{position.outcome}</span>
+                  <strong>{Number(position.size).toFixed(2)}</strong>
+                </li>
+              ))
+            )}
           </ul>
         </div>
         <div className="surface">
-          <p className="eyebrow">Closed history</p>
-          <h3>Recent Wins and Losses</h3>
+          <p className="eyebrow">Recent Trades</p>
+          <h3>Latest Activity</h3>
           <ul className="metric-list">
-            {detail.closedPositions.slice(0, 10).map((position) => (
-              <li key={position.id}>
-                <span>{position.outcome}</span>
-                <strong>{Number(position.realizedPnl).toFixed(2)}</strong>
-              </li>
-            ))}
+            {detail.recentTrades.length === 0 ? (
+              <li>No recent trades</li>
+            ) : (
+              detail.recentTrades.map((trade, index) => (
+                <li key={index}>
+                  <span>{trade.side}</span>
+                  <strong>{Number(trade.size).toFixed(2)} @ {Number(trade.price).toFixed(3)}</strong>
+                </li>
+              ))
+            )}
           </ul>
         </div>
-      </div>
-      <div className="surface">
-        <p className="eyebrow">Event analytics</p>
-        <h3>Category Footprint</h3>
-        <ul className="metric-list">
-          {detail.eventStats.map((event) => (
-            <li key={event.eventSlug}>
-              <span>{event.eventSlug}</span>
-              <strong>{event.tradeCount} trades</strong>
-            </li>
-          ))}
-        </ul>
       </div>
     </section>
   )
