@@ -1,14 +1,11 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { createDb } from '../client'
 import {
-  marketHolders,
   marketScores,
   marketSnapshots,
   marketTags,
   markets,
   tokens,
-  wallets,
-  walletTrades,
 } from '../schema'
 
 type DbClient = ReturnType<typeof createDb>
@@ -254,30 +251,16 @@ export async function listSignalInputs(db: DbClient) {
     .groupBy(marketSnapshots.marketId)
     .as('snapshot_scores')
 
-  const holderScores = db
-    .select({
-      marketId: marketHolders.marketId,
-      totalCurrentValue:
-        sql<number>`sum(${marketHolders.currentValue})::float`.as(
-          'total_current_value',
-        ),
-    })
-    .from(marketHolders)
-    .groupBy(marketHolders.marketId)
-    .as('holder_scores')
-
   return db
     .select({
       marketId: markets.id,
       marketStructureScore:
         sql<number>`coalesce(${snapshotScores.marketStructureScore}, 0.5)`,
-      smartMoneyScore:
-        sql<number>`coalesce(${holderScores.totalCurrentValue} / nullif(${markets.volume}::float, 0), 0)`,
+      smartMoneyScore: sql<number>`0`,
       timingScore: sql<number>`coalesce(${snapshotScores.timingScore}, 0)`,
     })
     .from(markets)
     .leftJoin(snapshotScores, eq(snapshotScores.marketId, markets.id))
-    .leftJoin(holderScores, eq(holderScores.marketId, markets.id))
 }
 
 export interface UpsertMarketScoreInput {
@@ -318,77 +301,14 @@ export async function upsertMarketScore(
     })
 }
 
-export interface MarketHolderInput {
-  tokenId: string
-  walletAddress: string
-  size: number
-  currentValue?: number
-}
-
-export async function replaceMarketHolders(
-  db: DbClient,
-  marketId: string,
-  rows: MarketHolderInput[],
-) {
-  await db.transaction(async (tx) => {
-    await tx.delete(marketHolders).where(eq(marketHolders.marketId, marketId))
-
-    if (rows.length === 0) {
-      return
-    }
-
-    const now = new Date()
-    const walletAddresses = [...new Set(rows.map((row) => row.walletAddress))]
-
-    for (const address of walletAddresses) {
-      await tx
-        .insert(wallets)
-        .values({
-          address,
-          displayName: null,
-          metadata: {},
-          profileImage: null,
-          pseudonym: null,
-          updatedAt: now,
-          verified: false,
-        })
-        .onConflictDoNothing()
-    }
-
-    await tx.insert(marketHolders).values(
-      rows.map((row) => ({
-        currentValue:
-          row.currentValue === undefined ? null : String(row.currentValue),
-        marketId,
-        size: String(row.size),
-        tokenId: row.tokenId,
-        updatedAt: now,
-        walletAddress: row.walletAddress,
-      })),
-    )
-  })
-}
-
 export async function getMarketDetailData(db: DbClient, marketId: string) {
   const [market] = await db
     .select()
     .from(markets)
     .where(eq(markets.id, marketId))
-  const holders = await db
-    .select()
-    .from(marketHolders)
-    .where(eq(marketHolders.marketId, marketId))
-    .orderBy(desc(marketHolders.size))
-  const recentTrades = await db
-    .select()
-    .from(walletTrades)
-    .where(eq(walletTrades.marketId, marketId))
-    .orderBy(desc(walletTrades.tradedAt))
 
   return {
-    holders: holders.slice(0, 10),
     market,
-    recentTrades: recentTrades.slice(0, 20),
   }
 }
 
