@@ -58,7 +58,7 @@ const DatabaseUrlSchema = z
 const EnvSchema = z.object({
   DATABASE_URL: DatabaseUrlSchema,
   POLYBOARD_MARKET_MIN_VOLUME: z.coerce.number().positive().default(50_000),
-  POLYBOARD_BACKFILL_BATCH_SIZE: z.coerce.number().int().positive().default(50),
+  POLYBOARD_BACKFILL_BATCH_SIZE: z.coerce.number().int().positive().default(20),
 })
 
 export function parseDatabaseEnv(input: Record<string, string | undefined>) {
