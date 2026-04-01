@@ -112,7 +112,7 @@ describe('summarizeFreshness', () => {
           status: 'live',
         },
         {
-          asOf: new Date('2026-03-30T11:57:00.000Z'),
+          asOf: new Date('2026-03-30T11:54:00.000Z'),
           sourceKey: 'ws:markets',
           status: 'live',
         },
