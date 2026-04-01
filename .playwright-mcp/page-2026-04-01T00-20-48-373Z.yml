@@ -1,0 +1,67 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - paragraph [ref=e5]: Private research console
+        - heading "Polyboard" [level=1] [ref=e6]
+      - navigation [ref=e7]:
+        - link "Dashboard" [ref=e8] [cursor=pointer]:
+          - /url: /
+        - link "Markets" [ref=e9] [cursor=pointer]:
+          - /url: /markets
+        - link "Wallets" [ref=e10] [cursor=pointer]:
+          - /url: /wallets
+        - link "Settings" [ref=e11] [cursor=pointer]:
+          - /url: /settings
+    - main [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - paragraph [ref=e15]: Market
+          - heading "Will Harvey Weinstein be sentenced to between 10 and 20 years in prison?" [level=2] [ref=e16]
+          - generic [ref=e17]:
+            - generic [ref=e18]:
+              - generic [ref=e19]: Condition ID
+              - strong [ref=e20]: "0x3d495a3e05eaffe438bb1c2ab97ed57a79b0a6ab18a2ca6fa5b448e20ce70082"
+            - generic [ref=e21]:
+              - generic [ref=e22]: Volume
+              - strong [ref=e23]: 122,784
+            - generic [ref=e24]:
+              - generic [ref=e25]: Status
+              - strong [ref=e26]: Active
+        - generic [ref=e27]:
+          - generic [ref=e28]:
+            - paragraph [ref=e29]: Flow
+            - heading "Price History" [level=3] [ref=e30]
+            - img [ref=e33]:
+              - generic [ref=e38]:
+                - generic [ref=e40]: 7:56 AM
+                - generic [ref=e42]: 9:56 AM
+                - generic [ref=e44]: 3:41 PM
+                - generic [ref=e46]: 3:52 PM
+                - generic [ref=e48]: 4:02 PM
+                - generic [ref=e50]: 4:55 PM
+                - generic [ref=e52]: 11:19 AM
+              - generic [ref=e54]:
+                - generic [ref=e56]: "0"
+                - generic [ref=e58]: "0.25"
+                - generic [ref=e60]: "0.5"
+                - generic [ref=e62]: "0.75"
+                - generic [ref=e64]: "1"
+          - generic [ref=e67]:
+            - paragraph [ref=e68]: Scoring
+            - heading "Score Breakdown" [level=3] [ref=e69]
+            - list [ref=e70]:
+              - listitem [ref=e71]:
+                - generic [ref=e72]: market structure
+                - strong [ref=e73]: "0.50"
+              - listitem [ref=e74]:
+                - generic [ref=e75]: smart money
+                - strong [ref=e76]: "0.00"
+              - listitem [ref=e77]:
+                - generic [ref=e78]: timing
+                - strong [ref=e79]: "7399.39"
+  - generic [ref=e80]:
+    - img [ref=e82]
+    - button "Open Tanstack query devtools" [ref=e130] [cursor=pointer]:
+      - img [ref=e131]
+  - generic [ref=e179]: "0"

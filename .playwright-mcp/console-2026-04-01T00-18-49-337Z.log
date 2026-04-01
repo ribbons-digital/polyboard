@@ -1,0 +1,30 @@
+[     407ms] [ERROR] Failed to load resource: the server responded with a status of 500 () @ http://localhost:3000/markets/544095:0
+[     493ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=d71f6aef:20102
+[     564ms] [ERROR] %o
+
+%s
+
+%s
+ Error: Cannot read properties of undefined (reading 'slice')
+    at http://localhost:3000/markets/544095:1:2402
+    at http://localhost:3000/markets/544095:1:2527 The above error occurred in the <MatchInnerImpl> component. React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl. @ http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=d71f6aef:7000
+[     564ms] [WARNING] Warning: The following error wasn't caught by any route! At the very least, consider setting an 'errorComponent' in your RootRoute! @ http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/@tanstack+react-router@1.168.8_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@tanstack/react-router/dist/esm/Matches.js?v=d71f6aef:33
+[     565ms] [WARNING] Warning: Cannot read properties of undefined (reading 'slice') @ http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/@tanstack+react-router@1.168.8_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@tanstack/react-router/dist/esm/Matches.js?v=d71f6aef:34
+[   91874ms] [ERROR] %o
+
+%s
+
+%s
+ Error: Cannot read properties of undefined (reading 'slice')
+    at Object.deserialize (http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/@tanstack+router-core@1.168.7/node_modules/@tanstack/router-core/dist/esm/ssr/serializer/ShallowErrorPlugin.js?v=d71f6aef:27:10)
+    at deserializePlugin (http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/seroval@1.5.1/node_modules/seroval/dist/esm/development/index.mjs?v=d71f6aef:2198:18)
+    at deserialize (http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/seroval@1.5.1/node_modules/seroval/dist/esm/development/index.mjs?v=d71f6aef:2346:14)
+    at assignProperty (http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/seroval@1.5.1/node_modules/seroval/dist/esm/development/index.mjs?v=d71f6aef:2038:39)
+    at deserializeProperties (http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/seroval@1.5.1/node_modules/seroval/dist/esm/development/index.mjs?v=d71f6aef:2060:7)
+    at deserializeObject (http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/seroval@1.5.1/node_modules/seroval/dist/esm/development/index.mjs?v=d71f6aef:2071:3)
+    at deserialize (http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/seroval@1.5.1/node_modules/seroval/dist/esm/development/index.mjs?v=d71f6aef:2319:14)
+    at deserializeTop (http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/seroval@1.5.1/node_modules/seroval/dist/esm/development/index.mjs?v=d71f6aef:2378:12)
+    at fromCrossJSON (http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/seroval@1.5.1/node_modules/seroval/dist/esm/development/index.mjs?v=d71f6aef:3955:10)
+    at getResponse (http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/@tanstack+start-client-core@1.167.7/node_modules/@tanstack/start-client-core/dist/esm/client-rpc/serverFnFetcher.js?v=d71f6aef:118:67) The above error occurred in the <MatchInnerImpl> component. React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl. @ http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=d71f6aef:7000
+[   91874ms] [WARNING] Warning: The following error wasn't caught by any route! At the very least, consider setting an 'errorComponent' in your RootRoute! @ http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/@tanstack+react-router@1.168.8_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@tanstack/react-router/dist/esm/Matches.js?v=d71f6aef:33
+[   91874ms] [WARNING] Warning: Cannot read properties of undefined (reading 'slice') @ http://localhost:3000/@fs/Users/shiang/projects/ribbons-digital/polyboard/node_modules/.pnpm/@tanstack+react-router@1.168.8_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/@tanstack/react-router/dist/esm/Matches.js?v=d71f6aef:34

@@ -1,0 +1,159 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - paragraph [ref=e5]: Private research console
+      - heading "Polyboard" [level=1] [ref=e6]
+    - navigation [ref=e7]:
+      - link "Dashboard" [ref=e8] [cursor=pointer]:
+        - /url: /
+      - link "Markets" [ref=e9] [cursor=pointer]:
+        - /url: /markets
+      - link "Wallets" [ref=e10] [cursor=pointer]:
+        - /url: /wallets
+      - link "Settings" [ref=e11] [cursor=pointer]:
+        - /url: /settings
+  - main [ref=e12]:
+    - generic [ref=e13]:
+      - region "Data status" [ref=e14]:
+        - generic [ref=e15]: degraded
+        - paragraph [ref=e16]: Some live sources are stale or unavailable.
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - paragraph [ref=e19]: Dashboard
+          - heading "Live Polymarket Intelligence" [level=2] [ref=e20]
+          - paragraph [ref=e21]: Track live order flow, top traders, and market structure from one landing page instead of hopping between placeholder screens.
+        - generic [ref=e22]:
+          - generic [ref=e23]:
+            - generic [ref=e24]: High-signal markets
+            - strong [ref=e25]: "5"
+          - generic [ref=e26]:
+            - generic [ref=e27]: Tracked volume
+            - strong [ref=e28]: 24,521,942
+          - generic [ref=e29]:
+            - generic [ref=e30]: Ranked wallets
+            - strong [ref=e31]: "5"
+          - generic [ref=e32]:
+            - generic [ref=e33]: Avg wallet win rate
+            - strong [ref=e34]: 33.7%
+      - generic [ref=e35]:
+        - article [ref=e36]:
+          - generic [ref=e37]:
+            - generic [ref=e38]:
+              - paragraph [ref=e39]: Markets
+              - heading "Top markets right now" [level=3] [ref=e40]
+            - link "Open market leaderboard" [ref=e41] [cursor=pointer]:
+              - /url: /markets
+          - paragraph [ref=e42]: Highest edge-score contracts ranked by current volume and timing.
+          - list [ref=e43]:
+            - listitem [ref=e44]:
+              - generic [ref=e45]:
+                - link "Will Harvey Weinstein be sentenced to between 10 and 20 years in prison?" [ref=e46] [cursor=pointer]:
+                  - /url: /markets/544095
+                - generic [ref=e47]:
+                  - generic [ref=e48]: Uncategorized
+                  - generic [ref=e49]: Courts
+                  - generic [ref=e50]: Culture
+              - generic [ref=e51]:
+                - strong [ref=e52]: "1499.26"
+                - generic [ref=e53]: edge
+            - listitem [ref=e54]:
+              - generic [ref=e55]:
+                - link "Will OpenAI launch a new consumer hardware product by March 31, 2026?" [ref=e56] [cursor=pointer]:
+                  - /url: /markets/546612
+                - generic [ref=e57]:
+                  - generic [ref=e58]: Uncategorized
+                  - generic [ref=e59]: AI
+                  - generic [ref=e60]: Big Tech
+              - generic [ref=e61]:
+                - strong [ref=e62]: "1264.15"
+                - generic [ref=e63]: edge
+            - listitem [ref=e64]:
+              - generic [ref=e65]:
+                - link "Will Monaco win the 2025–26 French Ligue 1?" [ref=e66] [cursor=pointer]:
+                  - /url: /markets/566732
+                - generic [ref=e67]:
+                  - generic [ref=e68]: Uncategorized
+                  - generic [ref=e69]: Ligue 1
+                  - generic [ref=e70]: Soccer
+              - generic [ref=e71]:
+                - strong [ref=e72]: "1194.81"
+                - generic [ref=e73]: edge
+            - listitem [ref=e74]:
+              - generic [ref=e75]:
+                - link "Will Curaçao win the 2026 FIFA World Cup?" [ref=e76] [cursor=pointer]:
+                  - /url: /markets/558978
+                - generic [ref=e77]:
+                  - generic [ref=e78]: Uncategorized
+                  - generic [ref=e79]: 2026 FIFA World Cup
+                  - generic [ref=e80]: FIFA World Cup
+              - generic [ref=e81]:
+                - strong [ref=e82]: "1193.06"
+                - generic [ref=e83]: edge
+            - listitem [ref=e84]:
+              - generic [ref=e85]:
+                - link "Will Leeds finish in last place in the 2025-26 English Premier League?" [ref=e86] [cursor=pointer]:
+                  - /url: /markets/572830
+                - generic [ref=e87]:
+                  - generic [ref=e88]: Uncategorized
+                  - generic [ref=e89]: EPL
+                  - generic [ref=e90]: Soccer
+              - generic [ref=e91]:
+                - strong [ref=e92]: "1111.04"
+                - generic [ref=e93]: edge
+        - article [ref=e94]:
+          - generic [ref=e95]:
+            - generic [ref=e96]:
+              - paragraph [ref=e97]: Wallets
+              - heading "Top wallets on the tape" [level=3] [ref=e98]
+            - link "Open wallet leaderboard" [ref=e99] [cursor=pointer]:
+              - /url: /wallets
+          - paragraph [ref=e100]: Strong realized PnL, clean win rates, and specialist tags at a glance.
+          - list [ref=e101]:
+            - listitem [ref=e102]:
+              - generic [ref=e103]:
+                - link "SwissMiss" [ref=e104] [cursor=pointer]:
+                  - /url: /wallets/0xdbade4c82fb72780a0db9a38f821d8671aba9c95
+                - generic [ref=e105]:
+                  - generic [ref=e106]: "0xdbade4c82fb72780a0db9a38f821d8671aba9c95"
+                  - generic [ref=e107]: high-conviction
+              - generic [ref=e108]:
+                - strong [ref=e109]: 0%
+                - generic [ref=e110]: win rate
+            - listitem [ref=e111]:
+              - generic [ref=e112]:
+                - link "rdba" [ref=e113] [cursor=pointer]:
+                  - /url: /wallets/0xc4d1a863e9cc45d02ba22d3a1ae9ba7822018ce8
+                - generic [ref=e114]:
+                  - generic [ref=e115]: "0xc4d1a863e9cc45d02ba22d3a1ae9ba7822018ce8"
+                  - generic [ref=e116]: high-conviction
+              - generic [ref=e117]:
+                - strong [ref=e118]: 33.3%
+                - generic [ref=e119]: win rate
+            - listitem [ref=e120]:
+              - generic [ref=e121]:
+                - link "How.Dare.You" [ref=e122] [cursor=pointer]:
+                  - /url: /wallets/0x4bbe10ba5b7f6df147c0dae17b46c44a6e562cf3
+                - generic [ref=e123]:
+                  - generic [ref=e124]: "0x4bbe10ba5b7f6df147c0dae17b46c44a6e562cf3"
+                  - generic [ref=e125]: high-conviction
+              - generic [ref=e126]:
+                - strong [ref=e127]: 100%
+                - generic [ref=e128]: win rate
+            - listitem [ref=e129]:
+              - generic [ref=e130]:
+                - link "bcda" [ref=e131] [cursor=pointer]:
+                  - /url: /wallets/0xb45a797faa52b0fd8adc56d30382022b7b12192c
+                - generic [ref=e133]: "0xb45a797faa52b0fd8adc56d30382022b7b12192c"
+              - generic [ref=e134]:
+                - strong [ref=e135]: 0%
+                - generic [ref=e136]: win rate
+            - listitem [ref=e137]:
+              - generic [ref=e138]:
+                - link "ScottyNooo" [ref=e139] [cursor=pointer]:
+                  - /url: /wallets/0xbacd00c9080a82ded56f504ee8810af732b0ab35
+                - generic [ref=e140]:
+                  - generic [ref=e141]: "0xbacd00c9080a82ded56f504ee8810af732b0ab35"
+                  - generic [ref=e142]: high-conviction
+              - generic [ref=e143]:
+                - strong [ref=e144]: 35.1%
+                - generic [ref=e145]: win rate

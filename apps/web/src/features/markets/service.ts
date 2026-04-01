@@ -130,7 +130,7 @@ export async function getMarketDetail(marketId: string) {
       label: formatTimeLabel(snapshot.capturedAt),
       price: snapshot.price,
     }))
-  const fallbackHistory = detail.recentTrades.slice(0, 8).reverse().map((trade) => ({
+  const fallbackHistory = (detail.recentTrades ?? []).slice(0, 8).reverse().map((trade) => ({
     label: formatTimeLabel(trade.tradedAt),
     price: Number(trade.price),
   }))

@@ -23,6 +23,9 @@ function MarketDetailPage() {
     return <div className="surface">Market not found.</div>
   }
 
+  const holders = detail.holders ?? []
+  const recentTrades = detail.recentTrades ?? []
+
   return (
     <section className="stack">
       <div className="surface hero-panel">
@@ -47,35 +50,37 @@ function MarketDetailPage() {
         <PriceHistoryChart points={detail.priceHistory} />
         <ScoreBreakdown values={detail.scoreBreakdown} />
       </div>
-      <div className="detail-grid">
-        <div className="surface">
-          <p className="eyebrow">Holdings</p>
-          <h3>Top Holders</h3>
-          <ul className="metric-list">
-            {detail.holders.map((holder) => (
-              <li key={`${holder.walletAddress}-${holder.tokenId}`}>
-                <span>{holder.walletAddress}</span>
-                <strong>{Number(holder.size).toFixed(2)}</strong>
-              </li>
-            ))}
-          </ul>
+      {holders.length > 0 && (
+        <div className="detail-grid">
+          <div className="surface">
+            <p className="eyebrow">Holdings</p>
+            <h3>Top Holders</h3>
+            <ul className="metric-list">
+              {holders.map((holder) => (
+                <li key={`${holder.walletAddress}-${holder.tokenId}`}>
+                  <span>{holder.walletAddress}</span>
+                  <strong>{Number(holder.size).toFixed(2)}</strong>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="surface">
+            <p className="eyebrow">Recent fills</p>
+            <h3>Trade Activity</h3>
+            <ul className="metric-list">
+              {recentTrades.map((trade) => (
+                <li key={trade.id}>
+                  <span>{trade.walletAddress}</span>
+                  <strong>
+                    {trade.side} {Number(trade.size).toFixed(2)} @{' '}
+                    {Number(trade.price).toFixed(3)}
+                  </strong>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-        <div className="surface">
-          <p className="eyebrow">Recent fills</p>
-          <h3>Trade Activity</h3>
-          <ul className="metric-list">
-            {detail.recentTrades.map((trade) => (
-              <li key={trade.id}>
-                <span>{trade.walletAddress}</span>
-                <strong>
-                  {trade.side} {Number(trade.size).toFixed(2)} @{' '}
-                  {Number(trade.price).toFixed(3)}
-                </strong>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
+      )}
     </section>
   )
 }
