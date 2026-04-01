@@ -32,7 +32,7 @@ const freshnessStaleAfterMs: Record<FreshnessSourceKey, number> = {
   'gamma:markets': 600_000,
   'data:wallets': 1_800_000,
   'scores:markets': 600_000,
-  'ws:markets': 120_000,
+  'ws:markets': 300_000,
 }
 
 export function normalizeFreshnessStatus(status: string): FreshnessStatus {
